@@ -1,5 +1,5 @@
-export const FREE_SHIPPING_THRESHOLD = 75;
-const FLAT_SHIPPING = 6.95;
+export const FREE_SHIPPING_THRESHOLD = 6225;
+const FLAT_SHIPPING = 577;
 const TAX_RATE = 0.0; // set to e.g. 0.08 to enable tax display
 
 export function calculateSubtotal(items) {

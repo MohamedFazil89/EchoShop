@@ -7,6 +7,8 @@ import { formatCurrency } from "../utils/formatCurrency";
 import { useToast } from "../hooks/useToast";
 import { useAuth } from "../hooks/useAuth";
 import { getUser, placeOrder, saveUser } from "../utils/userStorage";
+import { PaymentSection } from "../components/Payment/PaymentSection";
+import { Spinner } from "../components/ui/Spinner";
 
 const initialForm = {
   email: "",
@@ -38,32 +40,66 @@ export default function Checkout() {
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [orderId, setOrderId] = useState("");
+  const [paymentError, setPaymentError] = useState(null);
   const { showToast } = useToast();
 
-  const update = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
+  const update = (field) => (value) => setForm((f) => ({ ...f, [field]: value }));
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handlePaymentSubmit = async (paymentData) => {
+    setPaymentError(null);
+
+    // In production, you would send paymentData to your backend
+    // The backend would:
+    // 1. Verify the amount in paise matches the expected order total
+    // 2. Create a payment intent with the gateway (Razorpay/Stripe)
+    // 3. Return client token / publishable key to complete payment
+    // 4. Handle 3DS / OTP flow via webhook confirmation
+
+    // For this college demo, we simulate the payment processing
     setIsPlacingOrder(true);
-    // Simulated payment processing — swap for a real payment gateway call.
-    await new Promise((resolve) => setTimeout(resolve, 1200));
-    const profile = saveUser({
-      name: form.fullName,
-      email: form.email,
-      phone: getUser()?.phone ?? "",
-      shippingAddress: {
-        street: form.address,
-        city: form.city,
-        state: form.state,
-        pincode: form.postalCode,
-      },
-    });
-    const newOrderId = placeOrder(items, profile, totals.total);
-    setIsPlacingOrder(false);
-    setOrderId(newOrderId);
-    setOrderPlaced(true);
-    clearCart();
-    showToast("Order placed successfully!", { type: "success" });
+    try {
+      // Simulated payment processing delay
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+
+      // In production: verify payment status via webhook before confirming order
+      // For demo: just proceed
+
+      const profile = saveUser({
+        name: form.fullName,
+        email: form.email,
+        phone: getUser()?.phone ?? "",
+        shippingAddress: {
+          street: form.address,
+          city: form.city,
+          state: form.state,
+          pincode: form.postalCode,
+        },
+      });
+
+      // In production: verify payment amount server-side using paymentData.amountInPaise
+      // Never trust client-side amount
+      const newOrderId = placeOrder(items, profile, totals.total);
+
+      setIsPlacingOrder(false);
+      setOrderId(newOrderId);
+      setOrderPlaced(true);
+      clearCart();
+      showToast("Order placed successfully!", { type: "success" });
+    } catch (err) {
+      setIsPlacingOrder(false);
+      // Handle different error types with friendly messages
+      let message = "Payment failed. Please try again.";
+      if (err.code === "card_declined") message = "Your card was declined. Please try a different card.";
+      else if (err.code === "insufficient_funds") message = "Insufficient funds on this card.";
+      else if (err.code === "expired_card") message = "This card has expired.";
+      else if (err.code === "network_error") message = "Network error. Please check your connection and try again.";
+      else if (err.code === "timeout") message = "Payment timed out. Please try again.";
+      else if (err.code === "gateway_down") message = "Payment service unavailable. Please try again later.";
+      else if (err.code === "auth_cancelled") message = "Authentication was cancelled. Please try again.";
+
+      setPaymentError(message);
+      showToast(message, { type: "error" });
+    }
   };
 
   if (orderPlaced) {
@@ -106,7 +142,7 @@ export default function Checkout() {
     <div className="container-shop py-10">
       <h1 className="font-display text-3xl text-ink-900 sm:text-4xl">Checkout</h1>
 
-      <form onSubmit={handleSubmit} className="mt-8 grid gap-10 lg:grid-cols-[1fr_360px]">
+      <form className="mt-8 grid gap-10 lg:grid-cols-[1fr_360px]">
         <div className="space-y-8">
           <section>
             <h2 className="eyebrow mb-4">Contact</h2>
@@ -116,7 +152,7 @@ export default function Checkout() {
                 type="email"
                 required
                 value={form.email}
-                onChange={update("email")}
+                onChange={(e) => update("email")(e.target.value)}
                 className="input-field"
                 placeholder="you@example.com"
               />
@@ -131,7 +167,7 @@ export default function Checkout() {
                 <input
                   required
                   value={form.fullName}
-                  onChange={update("fullName")}
+                  onChange={(e) => update("fullName")(e.target.value)}
                   className="input-field"
                 />
               </label>
@@ -140,75 +176,62 @@ export default function Checkout() {
                 <input
                   required
                   value={form.address}
-                  onChange={update("address")}
+                  onChange={(e) => update("address")(e.target.value)}
                   className="input-field"
                 />
               </label>
               <label className="block">
                 <span className="mb-1.5 block text-sm text-ink-600">City</span>
-                <input required value={form.city} onChange={update("city")} className="input-field" />
+                <input required value={form.city} onChange={(e) => update("city")(e.target.value)} className="input-field" />
               </label>
               <label className="block">
                 <span className="mb-1.5 block text-sm text-ink-600">Postal code</span>
                 <input
                   required
                   value={form.postalCode}
-                  onChange={update("postalCode")}
+                  onChange={(e) => update("postalCode")(e.target.value)}
                   className="input-field"
                 />
               </label>
               <label className="block sm:col-span-2">
                 <span className="mb-1.5 block text-sm text-ink-600">State</span>
-                <input required value={form.state} onChange={update("state")} className="input-field" />
+                <input required value={form.state} onChange={(e) => update("state")(e.target.value)} className="input-field" />
               </label>
             </div>
           </section>
 
-          <section>
-            <h2 className="eyebrow mb-4 flex items-center gap-2">
-              <CreditCard size={14} /> Payment
-            </h2>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block sm:col-span-2">
-                <span className="mb-1.5 block text-sm text-ink-600">Card number</span>
-                <input
-                  required
-                  inputMode="numeric"
-                  placeholder="4242 4242 4242 4242"
-                  value={form.cardNumber}
-                  onChange={update("cardNumber")}
-                  className="input-field"
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1.5 block text-sm text-ink-600">Expiry</span>
-                <input
-                  required
-                  placeholder="MM/YY"
-                  value={form.expiry}
-                  onChange={update("expiry")}
-                  className="input-field"
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1.5 block text-sm text-ink-600">CVC</span>
-                <input
-                  required
-                  inputMode="numeric"
-                  placeholder="123"
-                  value={form.cvc}
-                  onChange={update("cvc")}
-                  className="input-field"
-                />
-              </label>
-            </div>
-            <p className="mt-3 flex items-center gap-1.5 text-xs text-ink-400">
-              <Lock size={12} /> This is a demo form — no real payment is processed.
-            </p>
-          </section>
+          <PaymentSection
+            form={form}
+            update={update}
+            isSubmitting={isPlacingOrder}
+            onSubmit={handlePaymentSubmit}
+            totals={totals}
+            disabled={isPlacingOrder}
+          />
 
-          <button type="submit" disabled={isPlacingOrder} className="btn-primary w-full sm:w-auto sm:px-12">
-            {isPlacingOrder ? "Placing order…" : `Place order — ${formatCurrency(totals.total)}`}
+          {paymentError && (
+            <div
+              role="alert"
+              className="mt-4 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm"
+            >
+              {paymentError}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => handlePaymentSubmit({})}
+            disabled={isPlacingOrder}
+            className="btn-primary w-full sm:w-auto sm:px-12"
+          >
+            {isPlacingOrder ? (
+              <>
+                <Spinner size={18} />
+                Processing…
+              </>
+            ) : (
+              `Place order — ${formatCurrency(totals.total)}`
+            )}
           </button>
         </div>
 

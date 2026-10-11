@@ -8,7 +8,7 @@ import { useProducts } from "../hooks/useProducts";
 import { useDebounce } from "../hooks/useDebounce";
 import { getCategoryById } from "../data/categories";
 
-const DEFAULT_FILTERS = { minPrice: 0, maxPrice: 200, minRating: 0, inStockOnly: false };
+const DEFAULT_FILTERS = { minPrice: 0, maxPrice: 16600, minRating: 0, inStockOnly: false };
 
 export default function Shop() {
   const [searchParams, setSearchParams] = useSearchParams();

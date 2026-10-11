@@ -160,7 +160,7 @@ export default function ProductDetails() {
 
           <ul className="mt-8 grid grid-cols-1 gap-3 border-t border-ink-800/[0.06] pt-6 sm:grid-cols-3">
             <li className="flex items-center gap-2.5 text-xs text-ink-600">
-              <Truck size={16} className="text-moss-700" /> Free shipping over $75
+              <Truck size={16} className="text-moss-700" /> Free shipping over ₹6,225
             </li>
             <li className="flex items-center gap-2.5 text-xs text-ink-600">
               <RotateCcw size={16} className="text-moss-700" /> 30-day easy returns

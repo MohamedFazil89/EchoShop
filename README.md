@@ -120,8 +120,8 @@ live:
 - Product images use `picsum.photos` placeholders (deterministic per seed) so
   the app has no external image-hosting dependency — replace `src/data/products.js`
   image URLs with real product photography when you have it.
-- Currency formatting defaults to USD (`utils/formatCurrency.js`) to match the
-  reference design; pass a different `currency`/`locale` argument to localize.
+- Currency formatting defaults to INR (`utils/formatCurrency.js`) for the Indian
+  market; pass a different `currency`/`locale` argument to localize.
 - Accessibility: interactive icons have `aria-label`s, form fields use
   associated `<label>`s, focus states are visible (`:focus-visible` in
   `index.css`), and the mobile drawer/mobile filters trap focus within a
