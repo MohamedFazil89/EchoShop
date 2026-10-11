@@ -5,6 +5,7 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useReducedMotion, useScrollAnimation } from "../../hooks/useScrollAnimation";
 import SplitText from "../ui/SplitText";
+import { handleProductImageError } from "../../utils/productImage";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -57,8 +58,10 @@ export default function Hero() {
       <div ref={heroRef} className="relative overflow-hidden rounded-3xl bg-moss-800">
         <img
           ref={imageRef}
-          src="https://picsum.photos/seed/eco-hero-kitchen/1600/900"
-          alt="A sage-green kitchen styled with sustainable cookware and greenery"
+          src="/products/p02.jpg"
+          alt="Cookware arranged for everyday meal preparation"
+          fetchPriority="high"
+          onError={handleProductImageError}
           className={`clip-reveal absolute inset-0 h-full w-full object-cover opacity-80 ${isVisible ? "clip-reveal--visible" : ""}`}
         />
         <div className="absolute inset-0 bg-gradient-to-r from-ink-900/70 via-ink-900/30 to-transparent" />

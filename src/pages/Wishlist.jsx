@@ -5,6 +5,7 @@ import Rating from "../components/ui/Rating";
 import { useWishlist } from "../hooks/useWishlist";
 import { useCart } from "../hooks/useCart";
 import { formatCurrency } from "../utils/formatCurrency";
+import { handleProductImageError } from "../utils/productImage";
 
 export default function Wishlist() {
   const { items, isLoading, loadError, removeFromWishlist } = useWishlist();
@@ -47,6 +48,8 @@ export default function Wishlist() {
                 <img
                   src={item.image}
                   alt={item.title}
+                  loading="lazy"
+                  onError={handleProductImageError}
                   className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.06]"
                 />
               </Link>

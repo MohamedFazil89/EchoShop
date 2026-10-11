@@ -9,6 +9,7 @@ import { useAuth } from "../hooks/useAuth";
 import { placeOrder as createOrder } from "../services/orderService";
 import { PaymentSection } from "../components/Payment/PaymentSection";
 import { Spinner } from "../components/ui/Spinner";
+import { handleProductImageError } from "../utils/productImage";
 
 const initialForm = {
   email: "",
@@ -238,7 +239,7 @@ export default function Checkout() {
             {items.map((item) => (
               <li key={item.id} className="flex items-center gap-3">
                 <div className="relative h-14 w-12 shrink-0 overflow-hidden rounded-lg bg-moss-100">
-                  <img src={item.image} alt={item.title} className="h-full w-full object-cover" />
+                  <img src={item.image} alt={item.title} loading="lazy" onError={handleProductImageError} className="h-full w-full object-cover" />
                   <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink-800 text-[10px] font-bold text-cream-50">
                     {item.quantity}
                   </span>

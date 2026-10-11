@@ -61,11 +61,24 @@ backend/
 The schema includes categories, products and inventory, customer accounts,
 hashed-password session records, carts and cart items, wishlists, orders, and
 order-item snapshots. Monetary values are stored in integer paise and returned
-to the existing UI as rupees. The catalog seed command can be re-run without
-resetting existing inventory.
+to the existing UI as rupees. The catalog seed command upserts its categories
+and stable product IDs, preserves existing inventory quantities, and does not
+delete products, accounts, or orders.
 
 - Product browsing, search, filtering, sorting, featured products, related
   products, and category navigation read from PostgreSQL.
+- The seed catalog contains 28 kitchenware and home products across the
+  categories served by the existing category API. There is no admin product
+  management interface.
+- The 20 existing demo products keep their stable IDs but have intentionally
+  corrected, generic product names and descriptions where prior claims were
+  unsupported. The seed adds eight products (`p21`–`p28`). Existing product
+  stock is not changed by an upsert; new products start with the seed quantity.
+- Catalog photography is stored locally in `public/products/`, included in the
+  Vite build, and referenced by the PostgreSQL seed. Asset mappings and image
+  verification results are recorded in
+  [the catalog image validation report](./docs/product-image-validation.md).
+  Original source and license metadata is not currently tracked in the repository.
 - Registered customers' profiles, carts, wishlists, and orders are stored in
   PostgreSQL and scoped to their signed-in account. Guest carts and wishlists
   exist only in memory and are merged into the account at sign-in.
@@ -102,8 +115,8 @@ PostgreSQL records.
 
 ## Other notes
 
-- Product images use deterministic `picsum.photos` placeholders from the seed
-  catalog. Replace them with product photography when available.
+- Product ratings and discount prices are left unset until real review and
+  pricing information is available; catalog prices are stored as INR paise.
 - Currency formatting defaults to INR in `src/utils/formatCurrency.js`.
 - The payment form is for the demo only. For a real launch, use hosted payment
   fields such as Stripe Elements or Razorpay Checkout; never send raw card

@@ -56,7 +56,13 @@ export default function ProductRail({ title, eyebrow, fetcher, viewAllHref }) {
         ) : (
           <div ref={gridRef} className="grid grid-cols-2 gap-x-5 gap-y-9 sm:grid-cols-4">
             {products.map((product, index) => (
-              <ProductCard key={product.id} product={product} isRevealed={isVisible} revealDelay={index * 80} />
+              <ProductCard
+                key={product.id}
+                product={product}
+                isRevealed={isVisible}
+                revealDelay={index * 80}
+                priority={index < 4}
+              />
             ))}
           </div>
         )}

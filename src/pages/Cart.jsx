@@ -7,6 +7,7 @@ import { useCart } from "../hooks/useCart";
 import { formatCurrency } from "../utils/formatCurrency";
 import { FREE_SHIPPING_THRESHOLD } from "../utils/calculateCart";
 import { useToast } from "../hooks/useToast";
+import { handleProductImageError } from "../utils/productImage";
 
 export default function Cart() {
   const { items, totals, isLoading, loadError, updateQuantity, removeItem, clearCart } = useCart();
@@ -52,7 +53,7 @@ export default function Cart() {
             {items.map((item) => (
               <li key={item.id} className="flex gap-4 py-6">
                 <Link to={`/product/${item.slug}`} className="h-24 w-20 shrink-0 overflow-hidden rounded-xl bg-moss-100">
-                  <img src={item.image} alt={item.title} className="h-full w-full object-cover" />
+                  <img src={item.image} alt={item.title} loading="lazy" onError={handleProductImageError} className="h-full w-full object-cover" />
                 </Link>
                 <div className="flex flex-1 flex-col justify-between">
                   <div className="flex items-start justify-between gap-3">

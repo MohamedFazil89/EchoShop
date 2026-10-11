@@ -104,7 +104,9 @@ export default function ProductDetails() {
             {product.isNew && <Badge variant="new">New</Badge>}
             {product.compareAtPrice && <Badge variant="sale">Sale</Badge>}
           </div>
-          <p className="mt-4 text-xs uppercase tracking-wide text-moss-600">{product.brand}</p>
+          {product.brand && (
+            <p className="mt-4 text-xs uppercase tracking-wide text-moss-600">{product.brand}</p>
+          )}
           <h1 className="mt-1 font-display text-3xl text-ink-900 sm:text-4xl">{product.title}</h1>
           <p className="mt-1 text-sm text-ink-400">{product.subtitle}</p>
 

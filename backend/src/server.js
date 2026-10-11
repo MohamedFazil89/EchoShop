@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./config.js";
 import { randomBytes, randomUUID } from "node:crypto";
 import cookieParser from "cookie-parser";
 import express from "express";

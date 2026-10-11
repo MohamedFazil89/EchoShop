@@ -1,16 +1,9 @@
 import { useState } from "react";
-
-const FALLBACK_IMAGE =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 900 1000'%3E%3Crect width='900' height='1000' fill='%23f8f4ec'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%237a6c5e' font-family='system-ui, sans-serif' font-size='48'%3EImage unavailable%3C/text%3E%3C/svg%3E";
+import { FALLBACK_PRODUCT_IMAGE, handleProductImageError } from "../../utils/productImage";
 
 export default function ProductGallery({ images, title }) {
   const [active, setActive] = useState(0);
-  const activeImage = images?.[active] || FALLBACK_IMAGE;
-
-  const handleImageError = (event) => {
-    event.currentTarget.onerror = null;
-    event.currentTarget.src = FALLBACK_IMAGE;
-  };
+  const activeImage = images?.[active] || FALLBACK_PRODUCT_IMAGE;
 
   return (
     <div>
@@ -18,13 +11,15 @@ export default function ProductGallery({ images, title }) {
         <img
           src={activeImage}
           alt={`${title} — view ${active + 1}`}
-          onError={handleImageError}
+          loading="eager"
+          fetchPriority="high"
+          onError={handleProductImageError}
           className="h-full w-full object-cover"
         />
       </div>
-      <div className="mt-4 flex gap-3">
-        {Array.isArray(images) && images.length > 0 ? (
-          images.map((src, i) => (
+      {Array.isArray(images) && images.length > 1 && (
+        <div className="mt-4 flex gap-3">
+          {images.map((src, i) => (
             <button
               key={`${src}-${i}`}
               onClick={() => setActive(i)}
@@ -33,13 +28,17 @@ export default function ProductGallery({ images, title }) {
               className={`h-20 w-16 shrink-0 overflow-hidden rounded-xl border-2 transition-colors
                 ${active === i ? "border-moss-700" : "border-transparent"}`}
             >
-              <img src={src} alt="" onError={handleImageError} className="h-full w-full object-cover" />
+              <img
+                src={src}
+                alt=""
+                loading="lazy"
+                onError={handleProductImageError}
+                className="h-full w-full object-cover"
+              />
             </button>
-          ))
-        ) : (
-          <div className="h-20 w-16 rounded-xl border-2 border-transparent bg-cream-50" />
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

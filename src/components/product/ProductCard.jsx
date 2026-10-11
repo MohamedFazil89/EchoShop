@@ -5,11 +5,14 @@ import Rating from "../ui/Rating";
 import { formatCurrency } from "../../utils/formatCurrency";
 import { useCart } from "../../hooks/useCart";
 import { useWishlist } from "../../hooks/useWishlist";
+import { FALLBACK_PRODUCT_IMAGE, handleProductImageError } from "../../utils/productImage";
 
-const FALLBACK_IMAGE =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 900 1000'%3E%3Crect width='900' height='1000' fill='%23f8f4ec'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%237a6c5e' font-family='system-ui, sans-serif' font-size='48'%3EImage unavailable%3C/text%3E%3C/svg%3E";
-
-export default function ProductCard({ product, isRevealed = true, revealDelay = 0 }) {
+export default function ProductCard({
+  product,
+  isRevealed = true,
+  revealDelay = 0,
+  priority = false,
+}) {
   const { addItem } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
   const wishlisted = isWishlisted(product.id);
@@ -26,11 +29,7 @@ export default function ProductCard({ product, isRevealed = true, revealDelay = 
     addItem(product, 1);
   };
 
-  const imageSrc = product.images?.[0] || FALLBACK_IMAGE;
-  const handleImageError = (event) => {
-    event.currentTarget.onerror = null;
-    event.currentTarget.src = FALLBACK_IMAGE;
-  };
+  const imageSrc = product.images?.[0] || FALLBACK_PRODUCT_IMAGE;
 
   return (
     <Link
@@ -44,8 +43,9 @@ export default function ProductCard({ product, isRevealed = true, revealDelay = 
           <img
             src={imageSrc}
             alt={product.title}
-            loading="lazy"
-            onError={handleImageError}
+            loading={priority ? "eager" : "lazy"}
+            fetchPriority={priority ? "high" : "auto"}
+            onError={handleProductImageError}
             className={`clip-reveal h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.06] ${isRevealed ? "clip-reveal--visible" : ""}`}
           />
         </div>
@@ -85,7 +85,9 @@ export default function ProductCard({ product, isRevealed = true, revealDelay = 
       </div>
 
       <div className="mt-3">
-        <p className="text-[11px] uppercase tracking-wide text-moss-600">{product.brand}</p>
+        {product.brand && (
+          <p className="text-[11px] uppercase tracking-wide text-moss-600">{product.brand}</p>
+        )}
         <h3 className="mt-0.5 truncate font-display text-[15px] text-ink-900">
           {product.title}
         </h3>

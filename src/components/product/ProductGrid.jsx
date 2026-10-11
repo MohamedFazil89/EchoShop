@@ -37,7 +37,13 @@ export default function ProductGrid({ products, isLoading, error }) {
   return (
     <div ref={ref} className="grid grid-cols-2 gap-x-5 gap-y-9 sm:grid-cols-3 lg:grid-cols-4">
       {products.map((product, index) => (
-        <ProductCard key={product.id} product={product} isRevealed={isVisible} revealDelay={index * 80} />
+        <ProductCard
+          key={product.id}
+          product={product}
+          isRevealed={isVisible}
+          revealDelay={index * 80}
+          priority={index < 4}
+        />
       ))}
     </div>
   );

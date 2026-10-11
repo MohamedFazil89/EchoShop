@@ -1,6 +1,10 @@
 import { Star } from "lucide-react";
 
 export default function Rating({ value = 0, count, size = 14, className = "" }) {
+  if (count === 0) {
+    return <span className={`text-xs text-ink-400 ${className}`}>No reviews yet</span>;
+  }
+
   return (
     <div className={`flex items-center gap-1.5 ${className}`}>
       <div className="flex items-center" role="img" aria-label={`Rated ${value} out of 5`}>

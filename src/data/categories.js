@@ -1,28 +1,58 @@
 export const categories = [
   {
-    id: "home-decoration",
+    id: "cookware",
+    name: "Cookware",
+    tagline: "Pots and pans for everyday cooking",
+    image: "/products/p02.jpg",
+  },
+  {
+    id: "drinkware",
+    name: "Drinkware",
+    tagline: "Bottles, mugs, and coffee essentials",
+    image: "/products/p01.jpg",
+  },
+  {
+    id: "kitchen-tools",
+    name: "Kitchen Tools",
+    tagline: "Useful pieces for prep and serving",
+    image: "/products/p19.jpg",
+  },
+  {
+    id: "food-storage",
+    name: "Food Storage",
+    tagline: "Containers and reusable coverings",
+    image: "/products/p05.jpg",
+  },
+  {
+    id: "kitchen-textiles",
+    name: "Kitchen Textiles",
+    tagline: "Aprons and reusable kitchen fabrics",
+    image: "/products/p18.jpg",
+  },
+  {
+    id: "tableware",
+    name: "Tableware",
+    tagline: "Everyday dining and serving",
+    image: "/products/p11.jpg",
+  },
+  {
+    id: "home-decor",
     name: "Home Decor",
-    tagline: "Stylish décor & accents",
-    image: "https://picsum.photos/seed/home-decoration/600/700",
+    tagline: "Simple accents for the home",
+    image: "/products/p15.jpg",
   },
   {
-    id: "groceries",
-    name: "Groceries",
-    tagline: "Fresh pantry essentials",
-    image: "https://picsum.photos/seed/groceries/600/700",
+    id: "bakeware",
+    name: "Bakeware",
+    tagline: "Tools for home baking",
+    image: "/products/p22.jpg",
   },
   {
-    id: "fragrances",
-    name: "Fragrances",
-    tagline: "Eco-friendly scents",
-    image: "https://picsum.photos/seed/fragrances/600/700",
-  },
-  {
-    id: "kitchen-accessories",
-    name: "Kitchen Accessories",
-    tagline: "Tools for every kitchen",
-    image: "https://picsum.photos/seed/kitchen-accessories/600/700",
+    id: "kitchen-cleaning",
+    name: "Kitchen Cleaning",
+    tagline: "Reusable tools for routine cleanup",
+    image: "/products/p23.jpg",
   },
 ];
 
-export const getCategoryById = (id) => categories.find((c) => c.id === id);
+export const getCategoryById = (id) => categories.find((category) => category.id === id);

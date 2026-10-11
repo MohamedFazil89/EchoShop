@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useCategories } from "../../hooks/useCategories";
 import SplitText from "../ui/SplitText";
+import { handleProductImageError } from "../../utils/productImage";
 
 export default function CategoryStrip() {
   const { categories, error } = useCategories();
@@ -31,6 +32,8 @@ export default function CategoryStrip() {
               <img
                 src={cat.image}
                 alt=""
+                loading="lazy"
+                onError={handleProductImageError}
                 className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
               />
             </div>
