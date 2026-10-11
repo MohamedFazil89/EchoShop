@@ -9,6 +9,7 @@ import {
   updateCartItem,
 } from "../services/cartService";
 import { calculateTotals } from "../utils/calculateCart";
+import { canPurchaseStock, isStockKnown } from "../utils/stockAvailability";
 import { useToast } from "./ToastContext";
 
 const CartContext = createContext(null);
@@ -26,6 +27,10 @@ export function CartProvider({ children }) {
   const setCartItems = (nextItems) => {
     itemsRef.current = nextItems;
     setItems(nextItems);
+  };
+
+  const markInventoryUnknown = () => {
+    setCartItems(itemsRef.current.map((item) => ({ ...item, stock: undefined })));
   };
 
   useEffect(() => {
@@ -59,7 +64,7 @@ export function CartProvider({ children }) {
           if (!cancelled) setCartItems(savedItems);
         } catch (error) {
           if (!cancelled) {
-            setCartItems(guestItems);
+            setCartItems(guestItems.map((item) => ({ ...item, stock: undefined })));
             setLoadError(error.message);
             showToast(error.message, { type: "error" });
           }
@@ -67,6 +72,7 @@ export function CartProvider({ children }) {
       })
       .catch((error) => {
         if (!cancelled) {
+          markInventoryUnknown();
           setLoadError(error.message);
           showToast(error.message, { type: "error" });
         }
@@ -84,6 +90,15 @@ export function CartProvider({ children }) {
     const currentItems = itemsRef.current;
     const existing = currentItems.find((item) => item.id === product.id);
     const nextQuantity = (existing?.quantity ?? 0) + quantity;
+    if (!canPurchaseStock(product.stock)) {
+      showToast(
+        isStockKnown(product.stock)
+          ? "This product is out of stock."
+          : "Availability could not be confirmed.",
+        { type: "error" }
+      );
+      return;
+    }
     if (nextQuantity > product.stock) {
       showToast("Requested quantity exceeds available stock.", { type: "error" });
       return;
@@ -92,6 +107,7 @@ export function CartProvider({ children }) {
       try {
         setCartItems(await addCartItem(product.id, quantity));
       } catch (error) {
+        markInventoryUnknown();
         showToast(error.message, { type: "error" });
         return;
       }
@@ -124,6 +140,7 @@ export function CartProvider({ children }) {
       try {
         setCartItems(await updateCartItem(id, quantity));
       } catch (error) {
+        markInventoryUnknown();
         showToast(error.message, { type: "error" });
       }
       return;
@@ -131,7 +148,13 @@ export function CartProvider({ children }) {
     setCartItems(
       itemsRef.current.map((item) =>
         item.id === id
-          ? { ...item, quantity: Math.min(Math.max(1, quantity), item.stock) }
+          ? {
+              ...item,
+              quantity: Math.min(
+                Math.max(1, quantity),
+                isStockKnown(item.stock) ? Math.max(1, item.stock) : item.quantity
+              ),
+            }
           : item
       )
     );
@@ -161,6 +184,7 @@ export function CartProvider({ children }) {
     removeItem,
     updateQuantity,
     clearCart,
+    markInventoryUnknown,
   };
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

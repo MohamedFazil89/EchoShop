@@ -2,10 +2,12 @@ import { Link } from "react-router-dom";
 import { Heart, ShoppingBag } from "lucide-react";
 import Badge from "../ui/Badge";
 import Rating from "../ui/Rating";
+import AvailabilityLabel from "./AvailabilityLabel";
 import { formatCurrency } from "../../utils/formatCurrency";
 import { useCart } from "../../hooks/useCart";
 import { useWishlist } from "../../hooks/useWishlist";
 import { FALLBACK_PRODUCT_IMAGE, handleProductImageError } from "../../utils/productImage";
+import { canPurchaseStock } from "../../utils/stockAvailability";
 
 export default function ProductCard({
   product,
@@ -16,7 +18,7 @@ export default function ProductCard({
   const { addItem } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
   const wishlisted = isWishlisted(product.id);
-  const outOfStock = product.stock === 0;
+  const canPurchase = canPurchaseStock(product.stock);
 
   const handleWishlist = (e) => {
     e.preventDefault();
@@ -25,7 +27,7 @@ export default function ProductCard({
 
   const handleAddToCart = (e) => {
     e.preventDefault();
-    if (outOfStock) return;
+    if (!canPurchase) return;
     addItem(product, 1);
   };
 
@@ -53,7 +55,6 @@ export default function ProductCard({
         <div className="absolute left-3 top-3 flex flex-col gap-1.5">
           {product.isNew && <Badge variant="new">New</Badge>}
           {product.compareAtPrice && <Badge variant="sale">Sale</Badge>}
-          {outOfStock && <Badge variant="low">Sold out</Badge>}
         </div>
 
         <button
@@ -72,7 +73,7 @@ export default function ProductCard({
 
         <button
           onClick={handleAddToCart}
-          disabled={outOfStock}
+          disabled={!canPurchase}
           className="absolute inset-x-3 bottom-3 flex translate-y-2 items-center justify-center gap-2
             rounded-full bg-ink-900/90 py-2.5 text-xs font-semibold uppercase tracking-wide text-cream-50
             opacity-0 backdrop-blur transition-all duration-300 ease-out
@@ -92,6 +93,7 @@ export default function ProductCard({
           {product.title}
         </h3>
         <Rating value={product.rating} count={product.reviewCount} className="mt-1.5" />
+        <AvailabilityLabel stock={product.stock} className="mt-1.5 block" />
         <div className="mt-1.5 flex items-baseline gap-2">
           <span className="font-semibold text-ink-800">{formatCurrency(product.price)}</span>
           {product.compareAtPrice && (

@@ -2,12 +2,14 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ShoppingBag, Tag, Trash2 } from "lucide-react";
 import EmptyState from "../components/ui/EmptyState";
+import AvailabilityLabel from "../components/product/AvailabilityLabel";
 import QuantityInput from "../components/ui/QuantityInput";
 import { useCart } from "../hooks/useCart";
 import { formatCurrency } from "../utils/formatCurrency";
 import { FREE_SHIPPING_THRESHOLD } from "../utils/calculateCart";
 import { useToast } from "../hooks/useToast";
 import { handleProductImageError } from "../utils/productImage";
+import { isStockKnown } from "../utils/stockAvailability";
 
 export default function Cart() {
   const { items, totals, isLoading, loadError, updateQuantity, removeItem, clearCart } = useCart();
@@ -71,6 +73,7 @@ export default function Cart() {
                           </span>
                         )}
                       </div>
+                      <AvailabilityLabel stock={item.stock} className="mt-1 block" />
                     </div>
                     <button
                       onClick={() => removeItem(item.id, item.title)}
@@ -85,6 +88,7 @@ export default function Cart() {
                       size="sm"
                       value={item.quantity}
                       onChange={(q) => updateQuantity(item.id, q)}
+                      max={isStockKnown(item.stock) ? Math.max(1, item.stock) : item.quantity}
                     />
                     <span className="text-sm font-semibold text-ink-800">
                       {formatCurrency(item.price * item.quantity)}

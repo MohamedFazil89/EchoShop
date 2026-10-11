@@ -10,6 +10,7 @@ import { placeOrder as createOrder } from "../services/orderService";
 import { PaymentSection } from "../components/Payment/PaymentSection";
 import { Spinner } from "../components/ui/Spinner";
 import { handleProductImageError } from "../utils/productImage";
+import AvailabilityLabel from "../components/product/AvailabilityLabel";
 
 const initialForm = {
   email: "",
@@ -21,7 +22,14 @@ const initialForm = {
 };
 
 export default function Checkout() {
-  const { items, totals, isLoading: isCartLoading, loadError: cartError, clearCart } = useCart();
+  const {
+    items,
+    totals,
+    isLoading: isCartLoading,
+    loadError: cartError,
+    clearCart,
+    markInventoryUnknown,
+  } = useCart();
   const { user, isLoading: isAuthLoading } = useAuth();
   const [form, setForm] = useState(() => {
     return {
@@ -90,6 +98,7 @@ export default function Checkout() {
       clearCart(false);
       showToast("Demo order placed. No payment was processed.", { type: "info" });
     } catch (err) {
+      markInventoryUnknown();
       const message = err.message || "Unable to place your order. Please try again.";
       setPaymentError(message);
       showToast(message, { type: "error" });
@@ -251,6 +260,7 @@ export default function Checkout() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm text-ink-800">{item.title}</p>
+                  <AvailabilityLabel stock={item.stock} className="mt-1 block" />
                 </div>
                 <span className="text-sm font-medium text-ink-800">
                   {formatCurrency(item.price * item.quantity)}

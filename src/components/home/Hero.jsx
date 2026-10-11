@@ -67,7 +67,7 @@ export default function Hero() {
         <div className="absolute inset-0 bg-gradient-to-r from-ink-900/70 via-ink-900/30 to-transparent" />
 
         <div className="relative flex min-h-[420px] flex-col justify-center px-6 py-16 sm:min-h-[520px] sm:px-12 lg:w-3/5 lg:px-16">
-          <span className="eyebrow w-fit rounded-full bg-cream-50/10 px-3 py-1.5 text-cream-100 backdrop-blur">
+          <span className="hero-eyebrow eyebrow w-fit rounded-full bg-cream-50/10 px-3 py-1.5 text-cream-100 backdrop-blur">
             New Season Edit
           </span>
           <h1 ref={headingRef} className="mt-5 max-w-lg font-display text-4xl leading-[1.08] text-cream-50 sm:text-5xl lg:text-6xl">
@@ -78,7 +78,7 @@ export default function Hero() {
             outlast the trend cycle — so your kitchen can look good and do good.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
-            <Link to="/shop" className="btn-primary bg-cream-50 text-ink-900 hover:bg-cream-100">
+            <Link to="/shop" className="hero-cta btn-primary bg-cream-50 text-ink-900 hover:bg-cream-100">
               Shop now
               <ArrowUpRight size={16} />
             </Link>

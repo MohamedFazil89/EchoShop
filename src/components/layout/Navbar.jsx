@@ -5,6 +5,7 @@ import { useCart } from "../../hooks/useCart";
 import { useWishlist } from "../../hooks/useWishlist";
 import { useCategories } from "../../hooks/useCategories";
 import MobileMenu from "./MobileMenu";
+import ThemeToggle from "./ThemeToggle";
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -44,7 +45,7 @@ export default function Navbar() {
       <header className={`sticky top-0 z-50 border-b border-ink-800/[0.06] bg-cream-50/90 backdrop-blur-md transition-all duration-[350ms] ease-out ${scrolled ? "bg-cream-50/80 shadow-soft" : ""}`}>
         <div className={`container-shop flex items-center justify-between gap-4 transition-all duration-[350ms] ease-out ${scrolled ? "h-[52px]" : "h-[72px]"}`}>
           {/* Left: mobile menu + logo */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={() => setMenuOpen(true)}
               className="btn-icon h-10 w-10 text-ink-800 lg:hidden"
@@ -52,11 +53,11 @@ export default function Navbar() {
             >
               <Menu size={22} />
             </button>
-            <Link to="/" className={`flex items-center gap-2 transition-transform duration-[350ms] ease-out ${scrolled ? "scale-[0.85]" : ""}`} aria-label="Homeleaf home">
+            <Link to="/" className={`flex items-center gap-1 sm:gap-2 transition-transform duration-[350ms] ease-out ${scrolled ? "scale-[0.85]" : ""}`} aria-label="Homeleaf home">
               <span className="flex h-9 w-9 items-center justify-center rounded-full bg-moss-700 text-cream-50">
                 <Leaf size={18} />
               </span>
-              <span className="font-display text-xl font-medium tracking-tightest text-ink-900">
+              <span className="max-[375px]:hidden font-display text-xl font-medium tracking-tightest text-ink-900">
                 Homeleaf
               </span>
             </Link>
@@ -85,7 +86,7 @@ export default function Navbar() {
           {categoriesError && <span role="alert" className="sr-only">{categoriesError}</span>}
 
           {/* Right: search + icons */}
-          <div className="flex items-center gap-1 sm:gap-2">
+          <div className="flex items-center gap-0 sm:gap-2">
             <form
               onSubmit={handleSearchSubmit}
               className={`relative hidden items-center overflow-hidden transition-all duration-300 sm:flex
@@ -102,12 +103,13 @@ export default function Navbar() {
             </form>
             <button
               onClick={() => setSearchOpen((v) => !v)}
-              className="btn-icon h-10 w-10 text-ink-800"
+              className="btn-icon h-9 w-9 text-ink-800 sm:h-10 sm:w-10"
               aria-label="Toggle search"
               aria-expanded={searchOpen}
             >
               <Search size={19} />
             </button>
+            <ThemeToggle />
 
             <Link
               to="/account"
@@ -119,7 +121,7 @@ export default function Navbar() {
 
             <Link
               to="/wishlist"
-              className="btn-icon relative h-10 w-10 text-ink-800"
+              className="btn-icon relative h-9 w-9 text-ink-800 sm:h-10 sm:w-10"
               aria-label={`Wishlist, ${wishlistCount} items`}
             >
               <Heart size={19} />
@@ -132,7 +134,7 @@ export default function Navbar() {
 
             <Link
               to="/cart"
-              className="btn-icon relative h-10 w-10 text-ink-800"
+              className="btn-icon relative h-9 w-9 text-ink-800 sm:h-10 sm:w-10"
               aria-label={`Cart, ${itemCount} items`}
             >
               <ShoppingBag size={19} />

@@ -67,6 +67,11 @@ delete products, accounts, or orders.
 
 - Product browsing, search, filtering, sorting, featured products, related
   products, and category navigation read from PostgreSQL.
+- Product cards, product details, carts, and checkout show stock availability
+  without exposing exact quantities except for low-stock warnings. Low stock
+  means 3 or fewer units by default; set `VITE_LOW_STOCK_THRESHOLD` to a
+  positive integer to configure the warning boundary. Missing stock is shown
+  as unknown, while the API remains authoritative for cart and order validation.
 - The seed catalog contains 28 kitchenware and home products across the
   categories served by the existing category API. There is no admin product
   management interface.
@@ -87,6 +92,15 @@ delete products, accounts, or orders.
   inventory in a transaction. Client totals are never trusted. Checkout
   submissions use an attempt-scoped idempotency key so transient retries do
   not create duplicate orders or decrement inventory twice.
+- Product availability uses the existing nonnegative `products.stock` value.
+  The storefront labels positive stock at or below the low-stock threshold as
+  “Only N left”; the threshold defaults to 3 and can be configured with
+  `VITE_LOW_STOCK_THRESHOLD`. Existing stock is preserved by catalog reseeds,
+  so inventory changes for existing products must be made deliberately in the
+  database.
+- The light/dark theme preference is stored locally in the browser and uses
+  the operating-system preference until the customer makes an explicit choice.
+  Theme selection does not require a database column or API call.
 - Sessions use HttpOnly, SameSite=Lax cookies that are Secure in production.
   Passwords are bcrypt-hashed. Card fields are not sent to the API or stored;
   checkout is still a simulated payment flow.

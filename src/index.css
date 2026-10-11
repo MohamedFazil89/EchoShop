@@ -113,6 +113,102 @@
 }
 
 @layer utilities {
+  .dark body,
+  .dark .bg-cream-50 {
+    background-color: #171b18;
+  }
+  .dark body {
+    color: #f2f1ec;
+  }
+  .dark h1,
+  .dark h2,
+  .dark h3,
+  .dark h4 {
+    color: #f2f1ec;
+  }
+  .dark .bg-cream-100 {
+    background-color: #222a24;
+  }
+  .dark .bg-cream-200 {
+    background-color: #303a33;
+  }
+  .dark .bg-moss-100 {
+    background-color: #303a33;
+  }
+  .dark .bg-clay-100 {
+    background-color: #49372c;
+  }
+  .dark [class~="bg-cream-50/90"],
+  .dark [class~="bg-cream-50/95"] {
+    background-color: #222a24;
+  }
+
+  .dark .text-ink-900,
+  .dark .text-ink-800 {
+    color: #f2f1ec;
+  }
+  .dark .text-ink-600 {
+    color: #c5cdc5;
+  }
+  .dark .text-ink-400,
+  .dark [class~="placeholder:text-ink-400"]::placeholder {
+    color: #a7b2a8;
+  }
+  .dark .text-moss-700,
+  .dark .text-moss-600,
+  .dark .eyebrow {
+    color: #a9cba9;
+  }
+  .dark .text-clay-600 {
+    color: #e6b08c;
+  }
+  .dark [class~="text-ink-800/20"] {
+    color: rgb(242 241 236 / 20%);
+  }
+
+  .dark .border-ink-800,
+  .dark [class~="border-ink-800/15"],
+  .dark [class~="border-ink-800/20"],
+  .dark [class~="border-ink-800/[0.06]"] {
+    border-color: #3b463f;
+  }
+  .dark [class~="divide-ink-800/[0.06]"] > :not([hidden]) ~ :not([hidden]) {
+    border-color: #3b463f;
+  }
+  .dark .card-surface {
+    background-color: #222a24;
+    border-color: #3b463f;
+  }
+  .dark .input-field {
+    background-color: #171b18;
+    border-color: #3b463f;
+    color: #f2f1ec;
+  }
+  .dark .btn-secondary {
+    border-color: #68756a;
+    color: #f2f1ec;
+  }
+  .dark .btn-secondary:hover {
+    border-color: #a7b2a8;
+  }
+
+  .dark .hero-cta {
+    background-color: #fefdfb;
+    color: #221e19;
+  }
+  .dark .hero-cta:hover {
+    background-color: #fbf7ef;
+  }
+  .dark .hero-eyebrow {
+    color: #fbf7ef;
+  }
+  .dark footer .bg-cream-50 {
+    background-color: #fefdfb;
+  }
+  .dark footer .eyebrow {
+    color: rgb(251 247 239 / 60%);
+  }
+
   .scrollbar-none::-webkit-scrollbar {
     display: none;
   }

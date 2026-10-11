@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { Heart, PackageX, RotateCcw, ShieldCheck, Truck } from "lucide-react";
 import ProductGallery from "../components/product/ProductGallery";
 import RelatedProducts from "../components/product/RelatedProducts";
+import AvailabilityLabel from "../components/product/AvailabilityLabel";
 import Rating from "../components/ui/Rating";
 import Badge from "../components/ui/Badge";
 import QuantityInput from "../components/ui/QuantityInput";
@@ -13,6 +14,7 @@ import { useCart } from "../hooks/useCart";
 import { useWishlist } from "../hooks/useWishlist";
 import { fetchProductBySlug, fetchRelatedProducts } from "../services/productService";
 import { useToast } from "../hooks/useToast";
+import { canPurchaseStock } from "../utils/stockAvailability";
 
 export default function ProductDetails() {
   const { slug } = useParams();
@@ -84,7 +86,8 @@ export default function ProductDetails() {
   }
 
   const wishlisted = isWishlisted(product.id);
-  const outOfStock = product.stock === 0;
+  const canPurchase = canPurchaseStock(product.stock);
+  const quantityLimit = canPurchase ? product.stock : quantity;
 
   return (
     <div className="container-shop py-10">
@@ -149,13 +152,13 @@ export default function ProductDetails() {
           )}
 
           <div className="mt-7 flex flex-wrap items-center gap-3">
-            <QuantityInput value={quantity} onChange={setQuantity} max={product.stock} />
+            <QuantityInput value={quantity} onChange={setQuantity} max={quantityLimit} />
             <button
               onClick={() => addItem(product, quantity)}
-              disabled={outOfStock}
+              disabled={!canPurchase}
               className="btn-primary flex-1 sm:flex-none sm:px-10"
             >
-              {outOfStock ? "Out of stock" : "Add to cart"}
+              {canPurchase ? "Add to cart" : "Unavailable"}
             </button>
             <button
               onClick={() => toggleWishlist(product)}
@@ -167,11 +170,12 @@ export default function ProductDetails() {
             </button>
           </div>
 
-          <p className="mt-3 text-xs text-ink-400">
-            {outOfStock
-              ? "Currently unavailable — check back soon."
-              : `${product.stock} in stock — usually ships within 2 business days.`}
-          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1">
+            <AvailabilityLabel stock={product.stock} />
+            {canPurchase && (
+              <p className="text-xs text-ink-400">Usually ships within 2 business days.</p>
+            )}
+          </div>
 
           <ul className="mt-8 grid grid-cols-1 gap-3 border-t border-ink-800/[0.06] pt-6 sm:grid-cols-3">
             <li className="flex items-center gap-2.5 text-xs text-ink-600">
