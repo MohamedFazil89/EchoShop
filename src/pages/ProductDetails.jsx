@@ -12,6 +12,7 @@ import { formatCurrency } from "../utils/formatCurrency";
 import { useCart } from "../hooks/useCart";
 import { useWishlist } from "../hooks/useWishlist";
 import { fetchProductBySlug, fetchRelatedProducts } from "../services/productService";
+import { useToast } from "../hooks/useToast";
 
 export default function ProductDetails() {
   const { slug } = useParams();
@@ -20,9 +21,11 @@ export default function ProductDetails() {
   const [status, setStatus] = useState("loading");
   const [quantity, setQuantity] = useState(1);
   const [activeColor, setActiveColor] = useState(0);
+  const [error, setError] = useState("");
 
   const { addItem } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
+  const { showToast } = useToast();
 
   useEffect(() => {
     let cancelled = false;
@@ -34,19 +37,25 @@ export default function ProductDetails() {
         if (cancelled) return;
         setProduct(data);
         setStatus("success");
-        return fetchRelatedProducts(data);
+        fetchRelatedProducts(data)
+          .then((relatedData) => {
+            if (!cancelled) setRelated(relatedData);
+          })
+          .catch((relatedError) => {
+            if (!cancelled) showToast(relatedError.message, { type: "error" });
+          });
       })
-      .then((relatedData) => {
-        if (!cancelled && relatedData) setRelated(relatedData);
-      })
-      .catch(() => {
-        if (!cancelled) setStatus("error");
+      .catch((requestError) => {
+        if (!cancelled) {
+          setError(requestError.message);
+          setStatus(requestError.status === 404 ? "not-found" : "error");
+        }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, showToast]);
 
   if (status === "loading") {
     return (
@@ -56,7 +65,7 @@ export default function ProductDetails() {
     );
   }
 
-  if (status === "error" || !product) {
+  if (status === "not-found") {
     return (
       <div className="container-shop py-16">
         <EmptyState
@@ -68,6 +77,10 @@ export default function ProductDetails() {
         />
       </div>
     );
+  }
+
+  if (status === "error") {
+    return <div role="alert" className="container-shop py-16 text-sm text-clay-600">{error}</div>;
   }
 
   const wishlisted = isWishlisted(product.id);

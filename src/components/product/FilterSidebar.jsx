@@ -1,7 +1,12 @@
-import { categories } from "../../data/categories";
 import Rating from "../ui/Rating";
 
-export default function FilterSidebar({ filters, onChange, onReset, className = "" }) {
+export default function FilterSidebar({
+  filters,
+  onChange,
+  onReset,
+  categories = [],
+  className = "",
+}) {
   const set = (patch) => onChange({ ...filters, ...patch });
 
   return (

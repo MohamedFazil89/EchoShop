@@ -1,128 +1,111 @@
 # Homeleaf — Eco-Friendly Kitchenware Storefront
 
-A complete, scalable React + Vite e-commerce frontend inspired by the reference
-layout: sage-green/cream palette, editorial serif headings, rounded product
-cards, and a warm, premium "sustainable kitchenware" feel.
+A React + Vite e-commerce storefront for sustainable kitchenware, backed by a
+local PostgreSQL database and a small Express API.
 
 ## Tech stack
 
-- React 19 + Vite
-- Tailwind CSS (custom design tokens — see `tailwind.config.js`)
-- React Router v7
-- Context API + `useReducer` for cart / wishlist / auth / toast state
-- lucide-react icons
-- Mock data + a `services/` layer shaped like a real API client
+- React 19, Vite, React Router, Tailwind CSS
+- Express API with PostgreSQL (`pg`)
+- bcrypt password hashing and database-backed HttpOnly cookie sessions
+- Context API for transient UI state (cart, wishlist, auth, toasts)
 
-## Getting started
+## Local setup with pgAdmin
 
-```bash
-npm install
-npm run dev       # http://localhost:5173
-npm run build      # production build to /dist
-npm run preview    # preview the production build locally
-```
+1. Install PostgreSQL and create a database named `ecoshop` in pgAdmin.
+2. Select `ecoshop`, open **Tools → Query Tool**, open
+   `backend/sql/schema.sql`, and execute it. The schema script is safe to run
+   again.
+3. Copy `.env.example` to `.env` and set `DATABASE_URL` to your local PostgreSQL
+   connection string. Keep `.env` private.
+4. Install dependencies and seed the product/category catalog:
 
-No environment variables are required to run the demo — everything is backed
-by mock data and `localStorage`.
+   ```bash
+   npm install
+   npm run db:seed
+   ```
+
+5. Start the API and frontend in separate terminals:
+
+   ```bash
+   npm run dev:api    # http://localhost:3000
+   npm run dev        # http://localhost:5173; Vite proxies /api to the API
+   ```
+
+The frontend reports database/API errors instead of presenting stale demo data
+as a successful operation. `npm run build` creates the frontend production
+build. Production must route `/api` to the backend and serve both from the same
+origin for the session cookie to work.
 
 ## Project structure
 
-```
+```text
 src/
-  assets/                 Local images/icons (empty — currently using remote URLs)
-  components/
-    home/                 Hero, CategoryStrip, ProductRail, Newsletter
-    layout/                Navbar, MobileMenu, Footer, Layout (Outlet shell)
-    product/               ProductCard, ProductGrid, FilterSidebar, SortDropdown,
-                            ProductGallery, RelatedProducts
-    ui/                    Rating, Badge, QuantityInput, Spinner/skeletons,
-                            EmptyState, ToastContainer
-  context/                 CartContext, WishlistContext, AuthContext, ToastContext
-  data/                    products.js, categories.js (mock catalog)
-  hooks/                   useCart/useWishlist/useAuth/useToast (re-exports),
-                            useLocalStorage, useProducts, useDebounce
-  pages/                   Home, Shop, ProductDetails, Cart, Wishlist, Checkout,
-                            Login, Register, Account, NotFound
-  services/                productService.js, authService.js — the "API layer"
-  utils/                   formatCurrency.js, calculateCart.js
-  App.jsx                  Route table
-  main.jsx                 Provider tree + router root
-  index.css                Tailwind layers + design-system component classes
+  components/      Home, layout, product, account, payment, and UI components
+  context/          Auth, cart, wishlist, and toast React providers
+  data/             Product and category seed data
+  hooks/            Context hooks, catalog hooks, and UI hooks
+  pages/            Store, checkout, auth, account, and order pages
+  services/         API client plus auth, catalog, cart, wishlist, profile, orders
+  utils/            Currency, cart calculation, and payment-form helpers
+backend/
+  sql/schema.sql    pgAdmin-ready PostgreSQL schema
+  src/server.js     Express API routes and order transactions
+  src/auth.js       Password and session handling
+  src/db.js         PostgreSQL connection pool and transaction helper
+  src/seed.js       Seed categories and products from src/data/
 ```
 
-## How the state management works
+## Data model and behavior
 
-**Cart (`CartContext.jsx`)** — a `useReducer` (`ADD_ITEM`, `REMOVE_ITEM`,
-`UPDATE_QUANTITY`, `CLEAR_CART`) holds the cart array. A `useEffect` mirrors
-every state change into `localStorage` via the generic `useLocalStorage` hook,
-so the cart survives refreshes. `totals` (subtotal, discount, shipping, total)
-are derived with `useMemo` from `utils/calculateCart.js`, kept as pure
-functions so they're easy to unit test independently of React.
+The schema includes categories, products and inventory, customer accounts,
+hashed-password session records, carts and cart items, wishlists, orders, and
+order-item snapshots. Monetary values are stored in integer paise and returned
+to the existing UI as rupees. The catalog seed command can be re-run without
+resetting existing inventory.
 
-**Wishlist (`WishlistContext.jsx`)** — simpler get/set state directly backed
-by `useLocalStorage`, with `toggleWishlist`/`isWishlisted` helpers.
+- Product browsing, search, filtering, sorting, featured products, related
+  products, and category navigation read from PostgreSQL.
+- Registered customers' profiles, carts, wishlists, and orders are stored in
+  PostgreSQL and scoped to their signed-in account. Guest carts and wishlists
+  exist only in memory and are merged into the account at sign-in.
+- Guest checkout remains available. The API reads product prices and stock,
+  computes shipping/totals, and inserts order snapshots while decrementing
+  inventory in a transaction. Client totals are never trusted.
+- Sessions use HttpOnly, SameSite=Lax cookies that are Secure in production.
+  Passwords are bcrypt-hashed. Card fields are not sent to the API or stored;
+  checkout is still a simulated payment flow.
+- This project has no admin dashboard, product CRUD, shipping/tracking
+  integration, coupon engine, or payment gateway.
 
-**Auth (`AuthContext.jsx`)** — wraps a mock `authService` (also
-`localStorage`-backed) that simulates registration/login with latency and
-error cases (e.g. duplicate email, wrong password). Swap the internals of
-`authService.js` for real `fetch`/SDK calls and every consuming component
-keeps working unchanged.
+### Persistence inventory
 
-**Toast (`ToastContext.jsx`)** — a small independent queue that Cart/Wishlist/
-Auth actions push into; `ToastContainer` renders it fixed to the viewport.
+| Data | Previous source | PostgreSQL destination / behavior |
+| --- | --- | --- |
+| Catalog, category labels, image URLs, price, inventory | `src/data/`, plus the old DummyJSON product request | `categories` and `products`; `npm run db:seed` imports the starter data |
+| Customer identity and password | `ecoshop_users` in browser storage (plaintext password) | `users` with a bcrypt hash; authenticated by expiring `user_sessions` |
+| Profile and delivery details | `ec_user` in browser storage | `users` profile columns and JSON address |
+| Registered customer's cart | `ecoshop_cart` in browser storage | `carts` and `cart_items`; guests keep only in-memory state |
+| Wishlist | `ecoshop_wishlist` in browser storage | `wishlist_items` for signed-in users; guests keep only in-memory state |
+| Order headers and delivery snapshot | `ec_orders` in browser storage | `orders` and `order_items`; product title, SKU, image, unit price, and quantity are snapshotted |
+| Card/payment data | In-memory demo form only | Not sent to the API and not stored; order payment status remains `simulated` |
+| Toasts, filters, and unfinished checkout form | React component state | Intentionally transient; not persisted |
 
-Every context exposes a `use*` hook that throws if called outside its
-provider, so misuse fails fast during development. The provider order in
-`main.jsx` is: `ToastProvider` → `AuthProvider` → `CartProvider` →
-`WishlistProvider`, since the latter three all call `useToast()`.
+### Existing browser data
 
-**Data fetching** — `services/productService.js` wraps the mock catalog in
-`Promise`-returning functions with artificial latency, filtering, and
-sorting — this is the seam where a real backend plugs in. `hooks/useProducts.js`
-wraps that service with `loading` / `success` / `error` state for the Shop
-page; `components/home/ProductRail.jsx` does the same inline for the
-homepage's featured/new-arrivals rails.
+The old demo kept users (including plaintext passwords), profiles, carts,
+wishlists, and orders in browser `localStorage`. The migrated app no longer
+reads or deletes those records. They cannot be safely imported as authenticated
+PostgreSQL accounts without verifying each customer's identity; existing demo
+users should create a new account. Clearing browser storage does not delete
+PostgreSQL records.
 
-## Connecting a real backend later
+## Other notes
 
-1. Replace the function bodies in `src/services/productService.js` and
-   `src/services/authService.js` with real `fetch()` (or your SDK) calls,
-   keeping the same function signatures and return shapes (or update the
-   handful of components that assume specific field names — `title`, `price`,
-   `images[0]`, etc.).
-2. Swap `authService`'s localStorage-backed session for real JWT/cookie-based
-   auth, and consider moving cart/wishlist persistence server-side (merging
-   the local cart into the account's cart on login is the usual pattern).
-3. If you introduce SSR/edge rendering later, the `services/` boundary means
-   only that layer needs to change — components and contexts are unaffected.
-
-## Adding a payment gateway
-
-The `Checkout.jsx` page currently simulates payment with a `setTimeout` and a
-plain card-details form (no real card data is transmitted or stored). To go
-live:
-
-- **Stripe** is the most common fit: use Stripe Elements/Payment Element for
-  PCI-compliant card capture instead of the raw `<input>`s, create a
-  PaymentIntent from your backend, and confirm it client-side.
-- **Razorpay** is a strong option if you're targeting Indian customers —
-  similarly, create an order server-side and open the Razorpay checkout
-  modal from the client.
-- Either way, never send raw card numbers to your own server — the gateway's
-  client SDK should tokenize the card, and your backend should only see the
-  token/PaymentIntent id.
-- On success, call `clearCart()` from `useCart()` (already wired) and
-  redirect/display the confirmation state that's already built into
-  `Checkout.jsx`.
-
-## Notes
-
-- Product images use `picsum.photos` placeholders (deterministic per seed) so
-  the app has no external image-hosting dependency — replace `src/data/products.js`
-  image URLs with real product photography when you have it.
-- Currency formatting defaults to INR (`utils/formatCurrency.js`) for the Indian
-  market; pass a different `currency`/`locale` argument to localize.
-- Accessibility: interactive icons have `aria-label`s, form fields use
-  associated `<label>`s, focus states are visible (`:focus-visible` in
-  `index.css`), and the mobile drawer/mobile filters trap focus within a
-  dismissible overlay.
+- Product images use deterministic `picsum.photos` placeholders from the seed
+  catalog. Replace them with product photography when available.
+- Currency formatting defaults to INR in `src/utils/formatCurrency.js`.
+- The payment form is for the demo only. For a real launch, use hosted payment
+  fields such as Stripe Elements or Razorpay Checkout; never send raw card
+  details to this API.
+- Interactive icons and form fields include accessible labels and focus states.

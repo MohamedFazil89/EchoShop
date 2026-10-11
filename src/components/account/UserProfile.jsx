@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { saveUser } from "../../utils/userStorage";
 
 const emptyProfile = {
   name: "",
@@ -15,6 +14,8 @@ export default function UserProfile({ user, onSave }) {
     shippingAddress: { ...emptyProfile.shippingAddress, ...user?.shippingAddress },
   }));
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   const update = (field) => (event) => {
     setProfile((current) => ({ ...current, [field]: event.target.value }));
@@ -28,11 +29,19 @@ export default function UserProfile({ user, onSave }) {
     setSaved(false);
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    const savedProfile = saveUser(profile);
-    onSave?.(savedProfile);
-    setSaved(true);
+    setError("");
+    setIsSaving(true);
+    try {
+      const savedProfile = await onSave(profile);
+      setProfile(savedProfile);
+      setSaved(true);
+    } catch (saveError) {
+      setError(saveError.message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -49,7 +58,10 @@ export default function UserProfile({ user, onSave }) {
           <label className="block"><span className="mb-1.5 block text-sm text-ink-600">State</span><input value={profile.shippingAddress.state} onChange={updateAddress("state")} className="input-field" /></label>
         </div>
         <label className="block"><span className="mb-1.5 block text-sm text-ink-600">Pincode</span><input value={profile.shippingAddress.pincode} onChange={updateAddress("pincode")} className="input-field" /></label>
-        <button className="btn-primary w-full" type="submit">Save profile</button>
+        <button className="btn-primary w-full" type="submit" disabled={isSaving}>
+          {isSaving ? "Saving…" : "Save profile"}
+        </button>
+        {error && <p role="alert" className="text-sm text-clay-600">{error}</p>}
         {saved && <p className="text-center text-sm text-moss-700">Profile saved.</p>}
       </form>
     </section>

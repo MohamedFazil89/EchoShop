@@ -6,7 +6,7 @@ import SortDropdown from "../components/product/SortDropdown";
 import ProductGrid from "../components/product/ProductGrid";
 import { useProducts } from "../hooks/useProducts";
 import { useDebounce } from "../hooks/useDebounce";
-import { getCategoryById } from "../data/categories";
+import { useCategories } from "../hooks/useCategories";
 
 const DEFAULT_FILTERS = { minPrice: 0, maxPrice: 16600, minRating: 0, inStockOnly: false };
 
@@ -19,6 +19,7 @@ export default function Shop() {
   const search = searchParams.get("search") || "";
   const sortBy = searchParams.get("sort") || "popularity";
   const debouncedSearch = useDebounce(search, 200);
+  const { categories, error: categoriesError } = useCategories();
 
   const queryParams = useMemo(
     () => ({ category, search: debouncedSearch, sortBy, ...filters }),
@@ -29,7 +30,11 @@ export default function Shop() {
 
   const setCategory = (id) => {
     const next = new URLSearchParams(searchParams);
-    id === "all" ? next.delete("category") : next.set("category", id);
+    if (id === "all") {
+      next.delete("category");
+    } else {
+      next.set("category", id);
+    }
     setSearchParams(next);
   };
 
@@ -44,7 +49,9 @@ export default function Shop() {
     setSearchParams({});
   };
 
-  const activeCategory = category !== "all" ? getCategoryById(category) : null;
+  const activeCategory = category !== "all"
+    ? categories.find((item) => item.id === category)
+    : null;
 
   return (
     <div className="container-shop py-10">
@@ -54,11 +61,13 @@ export default function Shop() {
           {activeCategory ? activeCategory.name : search ? `Results for “${search}”` : "All products"}
         </h1>
         {activeCategory && <p className="mt-1 text-sm text-ink-400">{activeCategory.tagline}</p>}
+        {categoriesError && <p role="alert" className="mt-2 text-sm text-clay-600">{categoriesError}</p>}
       </div>
 
       <div className="flex gap-10">
         <FilterSidebar
           filters={{ category, ...filters }}
+          categories={categories}
           onChange={(next) => {
             const { category: nextCategory, ...rest } = next;
             if (nextCategory !== category) setCategory(nextCategory);
@@ -104,6 +113,7 @@ export default function Shop() {
             </button>
             <FilterSidebar
               filters={{ category, ...filters }}
+              categories={categories}
               onChange={(next) => {
                 const { category: nextCategory, ...rest } = next;
                 if (nextCategory !== category) setCategory(nextCategory);

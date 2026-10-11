@@ -9,13 +9,18 @@ import { FREE_SHIPPING_THRESHOLD } from "../utils/calculateCart";
 import { useToast } from "../hooks/useToast";
 
 export default function Cart() {
-  const { items, totals, updateQuantity, removeItem, clearCart } = useCart();
+  const { items, totals, isLoading, loadError, updateQuantity, removeItem, clearCart } = useCart();
   const [promoCode, setPromoCode] = useState("");
   const { showToast } = useToast();
+
+  if (isLoading) {
+    return <div className="container-shop py-16 text-center text-sm text-ink-400">Loading your cart…</div>;
+  }
 
   if (items.length === 0) {
     return (
       <div className="container-shop py-16">
+        {loadError && <p role="alert" className="mb-5 text-sm text-clay-600">{loadError}</p>}
         <EmptyState
           icon={ShoppingBag}
           title="Your cart is empty"
@@ -37,6 +42,7 @@ export default function Cart() {
 
   return (
     <div className="container-shop py-10">
+      {loadError && <p role="alert" className="mb-5 text-sm text-clay-600">{loadError}</p>}
       <h1 className="font-display text-3xl text-ink-900 sm:text-4xl">Your cart</h1>
       <p className="mt-1 text-sm text-ink-400">{items.length} item{items.length > 1 ? "s" : ""}</p>
 

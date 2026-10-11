@@ -1,10 +1,11 @@
 import { Link } from "react-router-dom";
 import { LogIn, User, X } from "lucide-react";
-import { categories } from "../../data/categories";
 import { useAuth } from "../../hooks/useAuth";
+import { useCategories } from "../../hooks/useCategories";
 
 export default function MobileMenu({ open, onClose }) {
   const { isAuthenticated, user } = useAuth();
+  const { categories, error: categoriesError } = useCategories();
 
   return (
     <div
@@ -46,6 +47,7 @@ export default function MobileMenu({ open, onClose }) {
               {c.name}
             </Link>
           ))}
+          {categoriesError && <p role="alert" className="py-3 text-sm text-clay-600">{categoriesError}</p>}
         </div>
 
         <div className="mt-4 px-5">

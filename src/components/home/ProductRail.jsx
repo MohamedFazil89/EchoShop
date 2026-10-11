@@ -8,6 +8,7 @@ import SplitText from "../ui/SplitText";
 export default function ProductRail({ title, eyebrow, fetcher, viewAllHref }) {
   const [products, setProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
   const { ref: gridRef, isVisible } = useScrollAnimation(null, { resetKey: products.map((product) => product.id).join(",") });
 
   useEffect(() => {
@@ -18,13 +19,22 @@ export default function ProductRail({ title, eyebrow, fetcher, viewAllHref }) {
         setProducts(results);
         setIsLoading(false);
       }
+    }).catch((requestError) => {
+      if (!cancelled) {
+        setError(requestError.message);
+        setIsLoading(false);
+      }
     });
     return () => {
       cancelled = true;
     };
   }, [fetcher]);
 
-  if (!isLoading && products.length === 0) return null;
+  if (!isLoading && products.length === 0 && !error) return null;
+
+  if (error) {
+    return <p role="alert" className="container-shop mt-8 text-sm text-clay-600">{error}</p>;
+  }
 
   return (
     <section className="container-shop mt-20">

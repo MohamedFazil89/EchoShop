@@ -1,82 +1,160 @@
-import { createContext, useContext, useEffect, useMemo, useReducer } from "react";
-import { useLocalStorage } from "../hooks/useLocalStorage";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "../hooks/useAuth";
+import {
+  clearRemoteCart,
+  fetchCart,
+  mergeCart,
+  removeCartItem,
+  addCartItem,
+  updateCartItem,
+} from "../services/cartService";
 import { calculateTotals } from "../utils/calculateCart";
 import { useToast } from "./ToastContext";
 
 const CartContext = createContext(null);
 
-function cartReducer(state, action) {
-  switch (action.type) {
-    case "HYDRATE": {
-      return action.payload;
-    }
-    case "ADD_ITEM": {
-      const { product, quantity } = action.payload;
-      const existing = state.find((i) => i.id === product.id);
-      if (existing) {
-        return state.map((i) =>
-          i.id === product.id ? { ...i, quantity: i.quantity + quantity } : i
-        );
-      }
-      return [
-        ...state,
-        {
-          id: product.id,
-          slug: product.slug,
-          title: product.title,
-          price: product.price,
-          compareAtPrice: product.compareAtPrice,
-          image: product.images?.[0] ?? product.image ?? "",
-          quantity,
-        },
-      ];
-    }
-    case "REMOVE_ITEM":
-      return state.filter((i) => i.id !== action.payload.id);
-    case "UPDATE_QUANTITY":
-      return state
-        .map((i) =>
-          i.id === action.payload.id
-            ? { ...i, quantity: Math.max(1, action.payload.quantity) }
-            : i
-        )
-        .filter((i) => i.quantity > 0);
-    case "CLEAR_CART":
-      return [];
-    default:
-      return state;
-  }
-}
-
 export function CartProvider({ children }) {
-  const [persisted, setPersisted] = useLocalStorage("ecoshop_cart", []);
-  const [items, dispatch] = useReducer(cartReducer, persisted);
+  const [items, setItems] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const itemsRef = useRef(items);
+  const activeUserId = useRef(null);
+  const { user, isLoading: isAuthLoading } = useAuth();
+  const userId = user?.id;
   const { showToast } = useToast();
 
-  // Keep localStorage in sync any time the reducer state changes.
-  useEffect(() => setPersisted(items), [items]); // eslint-disable-line react-hooks/exhaustive-deps
+  const setCartItems = (nextItems) => {
+    itemsRef.current = nextItems;
+    setItems(nextItems);
+  };
 
-  const addItem = (product, quantity = 1) => {
-    dispatch({ type: "ADD_ITEM", payload: { product, quantity } });
+  useEffect(() => {
+    if (isAuthLoading) return undefined;
+    let cancelled = false;
+
+    if (!userId) {
+      if (activeUserId.current) {
+        setCartItems([]);
+        activeUserId.current = null;
+      }
+      setLoadError("");
+      setIsLoading(false);
+      return undefined;
+    }
+
+    activeUserId.current = userId;
+    setIsLoading(true);
+    setLoadError("");
+    const guestItems = itemsRef.current;
+    fetchCart()
+      .then(async (remoteItems) => {
+        if (cancelled) return;
+        if (guestItems.length === 0) {
+          setCartItems(remoteItems);
+          return;
+        }
+
+        try {
+          const savedItems = await mergeCart(guestItems);
+          if (!cancelled) setCartItems(savedItems);
+        } catch (error) {
+          if (!cancelled) {
+            setCartItems(guestItems);
+            setLoadError(error.message);
+            showToast(error.message, { type: "error" });
+          }
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setLoadError(error.message);
+          showToast(error.message, { type: "error" });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthLoading, userId, showToast]);
+
+  const addItem = async (product, quantity = 1) => {
+    const currentItems = itemsRef.current;
+    const existing = currentItems.find((item) => item.id === product.id);
+    const nextQuantity = (existing?.quantity ?? 0) + quantity;
+    if (nextQuantity > product.stock) {
+      showToast("Requested quantity exceeds available stock.", { type: "error" });
+      return;
+    }
+    if (user) {
+      try {
+        setCartItems(await addCartItem(product.id, quantity));
+      } catch (error) {
+        showToast(error.message, { type: "error" });
+        return;
+      }
+    } else {
+      const nextItems = existing
+        ? currentItems.map((item) =>
+            item.id === product.id ? { ...item, quantity: nextQuantity } : item
+          )
+        : [...currentItems, { ...product, quantity }];
+      setCartItems(nextItems);
+    }
     showToast(`${product.title} added to cart`, { type: "success" });
   };
 
-  const removeItem = (id, title) => {
-    dispatch({ type: "REMOVE_ITEM", payload: { id } });
+  const removeItem = async (id, title) => {
+    if (user) {
+      try {
+        await removeCartItem(id);
+      } catch (error) {
+        showToast(error.message, { type: "error" });
+        return;
+      }
+    }
+    setCartItems(itemsRef.current.filter((item) => item.id !== id));
     if (title) showToast(`${title} removed from cart`, { type: "info" });
   };
 
-  const updateQuantity = (id, quantity) => {
-    dispatch({ type: "UPDATE_QUANTITY", payload: { id, quantity } });
+  const updateQuantity = async (id, quantity) => {
+    if (user) {
+      try {
+        setCartItems(await updateCartItem(id, quantity));
+      } catch (error) {
+        showToast(error.message, { type: "error" });
+      }
+      return;
+    }
+    setCartItems(
+      itemsRef.current.map((item) =>
+        item.id === id
+          ? { ...item, quantity: Math.min(Math.max(1, quantity), item.stock) }
+          : item
+      )
+    );
   };
 
-  const clearCart = () => dispatch({ type: "CLEAR_CART" });
+  const clearCart = async (syncRemote = true) => {
+    if (user && syncRemote) {
+      try {
+        await clearRemoteCart();
+      } catch (error) {
+        showToast(error.message, { type: "error" });
+        return;
+      }
+    }
+    setCartItems([]);
+  };
 
-  const itemCount = items.reduce((sum, i) => sum + i.quantity, 0);
+  const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const totals = useMemo(() => calculateTotals(items), [items]);
-
   const value = {
     items,
+    isLoading,
+    loadError,
     itemCount,
     totals,
     addItem,
@@ -89,7 +167,7 @@ export function CartProvider({ children }) {
 }
 
 export function useCart() {
-  const ctx = useContext(CartContext);
-  if (!ctx) throw new Error("useCart must be used within a CartProvider");
-  return ctx;
+  const context = useContext(CartContext);
+  if (!context) throw new Error("useCart must be used within a CartProvider");
+  return context;
 }

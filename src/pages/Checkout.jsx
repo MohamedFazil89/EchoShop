@@ -1,12 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { CheckCircle2, CreditCard, Lock, ShoppingBag } from "lucide-react";
+import { CheckCircle2, ShoppingBag } from "lucide-react";
 import EmptyState from "../components/ui/EmptyState";
 import { useCart } from "../hooks/useCart";
 import { formatCurrency } from "../utils/formatCurrency";
 import { useToast } from "../hooks/useToast";
 import { useAuth } from "../hooks/useAuth";
-import { getUser, placeOrder, saveUser } from "../utils/userStorage";
+import { placeOrder as createOrder } from "../services/orderService";
 import { PaymentSection } from "../components/Payment/PaymentSection";
 import { Spinner } from "../components/ui/Spinner";
 
@@ -23,18 +23,17 @@ const initialForm = {
 };
 
 export default function Checkout() {
-  const { items, totals, clearCart } = useCart();
-  const { user } = useAuth();
+  const { items, totals, isLoading: isCartLoading, loadError: cartError, clearCart } = useCart();
+  const { user, isLoading: isAuthLoading } = useAuth();
   const [form, setForm] = useState(() => {
-    const profile = getUser();
     return {
       ...initialForm,
-      email: profile?.email ?? user?.email ?? "",
-      fullName: profile?.name ?? user?.name ?? "",
-      address: profile?.shippingAddress?.street ?? "",
-      city: profile?.shippingAddress?.city ?? "",
-      state: profile?.shippingAddress?.state ?? "",
-      postalCode: profile?.shippingAddress?.pincode ?? "",
+      email: user?.email ?? "",
+      fullName: user?.name ?? "",
+      address: user?.shippingAddress?.street ?? "",
+      city: user?.shippingAddress?.city ?? "",
+      state: user?.shippingAddress?.state ?? "",
+      postalCode: user?.shippingAddress?.pincode ?? "",
     };
   });
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
@@ -43,60 +42,49 @@ export default function Checkout() {
   const [paymentError, setPaymentError] = useState(null);
   const { showToast } = useToast();
 
+  useEffect(() => {
+    if (!user) return;
+    setForm((current) => ({
+      ...current,
+      email: current.email || user.email,
+      fullName: current.fullName || user.name,
+      address: current.address || user.shippingAddress?.street || "",
+      city: current.city || user.shippingAddress?.city || "",
+      state: current.state || user.shippingAddress?.state || "",
+      postalCode: current.postalCode || user.shippingAddress?.pincode || "",
+    }));
+  }, [user]);
+
   const update = (field) => (value) => setForm((f) => ({ ...f, [field]: value }));
 
-  const handlePaymentSubmit = async (paymentData) => {
+  const handlePaymentSubmit = async () => {
     setPaymentError(null);
-
-    // In production, you would send paymentData to your backend
-    // The backend would:
-    // 1. Verify the amount in paise matches the expected order total
-    // 2. Create a payment intent with the gateway (Razorpay/Stripe)
-    // 3. Return client token / publishable key to complete payment
-    // 4. Handle 3DS / OTP flow via webhook confirmation
-
-    // For this college demo, we simulate the payment processing
     setIsPlacingOrder(true);
     try {
-      // Simulated payment processing delay
       await new Promise((resolve) => setTimeout(resolve, 1200));
-
-      // In production: verify payment status via webhook before confirming order
-      // For demo: just proceed
-
-      const profile = saveUser({
-        name: form.fullName,
-        email: form.email,
-        phone: getUser()?.phone ?? "",
-        shippingAddress: {
-          street: form.address,
-          city: form.city,
-          state: form.state,
-          pincode: form.postalCode,
+      const order = await createOrder({
+        items,
+        customer: {
+          name: form.fullName,
+          email: form.email,
+          phone: user?.phone ?? "",
+          shippingAddress: {
+            street: form.address,
+            city: form.city,
+            state: form.state,
+            pincode: form.postalCode,
+          },
         },
       });
 
-      // In production: verify payment amount server-side using paymentData.amountInPaise
-      // Never trust client-side amount
-      const newOrderId = placeOrder(items, profile, totals.total);
-
       setIsPlacingOrder(false);
-      setOrderId(newOrderId);
+      setOrderId(order.id);
       setOrderPlaced(true);
-      clearCart();
+      clearCart(false);
       showToast("Order placed successfully!", { type: "success" });
     } catch (err) {
       setIsPlacingOrder(false);
-      // Handle different error types with friendly messages
-      let message = "Payment failed. Please try again.";
-      if (err.code === "card_declined") message = "Your card was declined. Please try a different card.";
-      else if (err.code === "insufficient_funds") message = "Insufficient funds on this card.";
-      else if (err.code === "expired_card") message = "This card has expired.";
-      else if (err.code === "network_error") message = "Network error. Please check your connection and try again.";
-      else if (err.code === "timeout") message = "Payment timed out. Please try again.";
-      else if (err.code === "gateway_down") message = "Payment service unavailable. Please try again later.";
-      else if (err.code === "auth_cancelled") message = "Authentication was cancelled. Please try again.";
-
+      const message = err.message || "Unable to place your order. Please try again.";
       setPaymentError(message);
       showToast(message, { type: "error" });
     }
@@ -117,11 +105,21 @@ export default function Checkout() {
           <p className="mt-2 text-sm font-semibold text-ink-600">Order {orderId}</p>
           <div className="mt-8 flex gap-3">
             <Link to="/shop" className="btn-primary">Continue shopping</Link>
-            <Link to="/account" className="btn-secondary">View orders</Link>
+            <Link to={user ? "/account" : "/shop"} className="btn-secondary">
+              {user ? "View orders" : "Browse products"}
+            </Link>
           </div>
         </div>
       </div>
     );
+  }
+
+  if (isCartLoading || isAuthLoading) {
+    return <div className="flex min-h-[50vh] items-center justify-center"><Spinner size={28} /></div>;
+  }
+
+  if (cartError) {
+    return <div role="alert" className="container-shop py-16 text-sm text-clay-600">{cartError}</div>;
   }
 
   if (items.length === 0) {
@@ -205,7 +203,6 @@ export default function Checkout() {
             update={update}
             isSubmitting={isPlacingOrder}
             onSubmit={handlePaymentSubmit}
-            totals={totals}
             disabled={isPlacingOrder}
           />
 
@@ -220,7 +217,7 @@ export default function Checkout() {
 
           <button
             type="button"
-            onClick={() => handlePaymentSubmit({})}
+            onClick={handlePaymentSubmit}
             disabled={isPlacingOrder}
             className="btn-primary w-full sm:w-auto sm:px-12"
           >

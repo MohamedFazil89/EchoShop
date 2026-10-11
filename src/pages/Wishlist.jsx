@@ -7,12 +7,17 @@ import { useCart } from "../hooks/useCart";
 import { formatCurrency } from "../utils/formatCurrency";
 
 export default function Wishlist() {
-  const { items, removeFromWishlist } = useWishlist();
+  const { items, isLoading, loadError, removeFromWishlist } = useWishlist();
   const { addItem } = useCart();
+
+  if (isLoading) {
+    return <div className="container-shop py-16 text-center text-sm text-ink-400">Loading your wishlist…</div>;
+  }
 
   if (items.length === 0) {
     return (
       <div className="container-shop py-16">
+        {loadError && <p role="alert" className="mb-5 text-sm text-clay-600">{loadError}</p>}
         <EmptyState
           icon={Heart}
           title="Your wishlist is empty"
@@ -30,6 +35,7 @@ export default function Wishlist() {
 
   return (
     <div className="container-shop py-10">
+      {loadError && <p role="alert" className="mb-5 text-sm text-clay-600">{loadError}</p>}
       <h1 className="font-display text-3xl text-ink-900 sm:text-4xl">Your wishlist</h1>
       <p className="mt-1 text-sm text-ink-400">{items.length} saved item{items.length > 1 ? "s" : ""}</p>
 

@@ -11,6 +11,7 @@ gsap.registerPlugin(ScrollTrigger);
 
 export default function FeaturedCollection() {
   const [products, setProducts] = useState([]);
+  const [error, setError] = useState("");
   const sectionRef = useRef(null);
   const trackRef = useRef(null);
   const progressRef = useRef(null);
@@ -24,6 +25,8 @@ export default function FeaturedCollection() {
     let cancelled = false;
     fetchFeaturedProducts(6).then((results) => {
       if (!cancelled) setProducts(results);
+    }).catch((requestError) => {
+      if (!cancelled) setError(requestError.message);
     });
     return () => { cancelled = true; };
   }, []);
@@ -69,7 +72,11 @@ export default function FeaturedCollection() {
     };
   }, [products.length, reducedMotion]);
 
-  if (!products.length) return null;
+  if (!products.length) {
+    return error
+      ? <p role="alert" className="container-shop mt-8 text-sm text-clay-600">{error}</p>
+      : null;
+  }
 
   return (
     <section ref={sectionRef} className="featured-collection container-shop mt-20 overflow-hidden py-2">

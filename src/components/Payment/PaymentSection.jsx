@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { detectCardBrand, getBrandLabel, validateCardNumber, validateExpiry, validateCvc, toPaise } from "../../utils/payment";
+import { detectCardBrand, validateCardNumber, validateExpiry, validateCvc } from "../../utils/payment";
 import { CardNumberInput } from "./CardNumberInput";
 import { CardExpiryInput } from "./CardExpiryInput";
 import { CardCvcInput } from "./CardCvcInput";
@@ -12,7 +12,7 @@ import { Lock } from "lucide-react";
  * - Hosted-field-style inputs with full validation
  * - Brand detection with icon
  * - Validation on blur and submit
- * - Demo mode notice (when PAYMENT_MODE=demo)
+ * - Demo mode notice
  * - Loading state with spinner, double-click prevention
  * - Idempotency key for order attempts
  * - Proper accessibility: labels, aria-invalid, aria-describedby, role="alert"
@@ -23,12 +23,8 @@ export function PaymentSection({
   update,
   isSubmitting,
   onSubmit,
-  totals,
   disabled = false,
 }) {
-  // Demo mode flag from env
-  const isDemoMode = import.meta.env.VITE_PAYMENT_MODE === "demo";
-
   // Form state for card fields
   const [cardNumber, setCardNumber] = useState(form.cardNumber || "");
   const [expiry, setExpiry] = useState(form.expiry || "");
@@ -51,9 +47,6 @@ export function PaymentSection({
     expiry: false,
     cvc: false,
   });
-
-  // Idempotency key for this order attempt
-  const [idempotencyKey] = useState(() => `order_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`);
 
   // Update brand when card number changes
   useEffect(() => {
@@ -126,9 +119,6 @@ export function PaymentSection({
     expiry.trim().length > 0 &&
     cvc.trim().length > 0;
 
-  // Get the amount in paise for server-side verification
-  const amountInPaise = toPaise(totals.total);
-
   // Handle submit
   const handleSubmit = useCallback(
     async (e) => {
@@ -148,17 +138,9 @@ export function PaymentSection({
         return;
       }
 
-      // Call parent submit with additional payment data
-      onSubmit({
-        ...form,
-        cardNumber,
-        expiry,
-        cvc,
-        idempotencyKey,
-        amountInPaise,
-      });
+      onSubmit();
     },
-    [isSubmitting, isValid, validateAll, form, cardNumber, expiry, cvc, idempotencyKey, amountInPaise, onSubmit]
+    [isSubmitting, isValid, validateAll, onSubmit]
   );
 
   return (
@@ -207,11 +189,7 @@ export function PaymentSection({
 
       <p className="mt-3 flex items-center gap-1.5 text-xs text-ink-400">
         <Lock size={12} />
-        {isDemoMode ? (
-          "This is a demo form — no real payment is processed."
-        ) : (
-          "Secured by payment gateway"
-        )}
+        This is a demo form — no real payment is processed.
       </p>
     </section>
   );

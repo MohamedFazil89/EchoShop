@@ -1,7 +1,4 @@
-// Mock product catalog.
-// Shape mirrors what a typical REST/GraphQL product endpoint would return,
-// so `services/productService.js` can be pointed at a real API later
-// without touching any component code.
+// Starter catalog seeded into PostgreSQL by backend/src/seed.js.
 
 const img = (seed, n = 1) =>
   Array.from({ length: n }, (_, i) => `https://picsum.photos/seed/${seed}-${i}/900/1000`);

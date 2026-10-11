@@ -3,7 +3,7 @@ import { Link, NavLink, useNavigate } from "react-router-dom";
 import { Heart, Leaf, Menu, Search, ShoppingBag, User } from "lucide-react";
 import { useCart } from "../../hooks/useCart";
 import { useWishlist } from "../../hooks/useWishlist";
-import { categories } from "../../data/categories";
+import { useCategories } from "../../hooks/useCategories";
 import MobileMenu from "./MobileMenu";
 
 export default function Navbar() {
@@ -13,6 +13,7 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const { itemCount } = useCart();
   const { count: wishlistCount } = useWishlist();
+  const { categories, error: categoriesError } = useCategories();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -81,6 +82,7 @@ export default function Navbar() {
               </NavLink>
             ))}
           </nav>
+          {categoriesError && <span role="alert" className="sr-only">{categoriesError}</span>}
 
           {/* Right: search + icons */}
           <div className="flex items-center gap-1 sm:gap-2">

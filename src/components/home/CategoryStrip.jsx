@@ -1,8 +1,10 @@
 import { Link } from "react-router-dom";
-import { categories } from "../../data/categories";
+import { useCategories } from "../../hooks/useCategories";
 import SplitText from "../ui/SplitText";
 
 export default function CategoryStrip() {
+  const { categories, error } = useCategories();
+
   return (
     <section className="container-shop mt-20">
       <div className="flex items-end justify-between">
@@ -15,6 +17,9 @@ export default function CategoryStrip() {
         </Link>
       </div>
 
+      {error ? (
+        <p role="alert" className="mt-7 text-sm text-clay-600">{error}</p>
+      ) : (
       <div className="mt-7 flex gap-4 overflow-x-auto pb-2 scrollbar-none sm:grid sm:grid-cols-3 sm:overflow-visible lg:grid-cols-6">
         {categories.map((cat) => (
           <Link
@@ -37,6 +42,7 @@ export default function CategoryStrip() {
           </Link>
         ))}
       </div>
+      )}
     </section>
   );
 }
