@@ -84,7 +84,9 @@ delete products, accounts, or orders.
   exist only in memory and are merged into the account at sign-in.
 - Guest checkout remains available. The API reads product prices and stock,
   computes shipping/totals, and inserts order snapshots while decrementing
-  inventory in a transaction. Client totals are never trusted.
+  inventory in a transaction. Client totals are never trusted. Checkout
+  submissions use an attempt-scoped idempotency key so transient retries do
+  not create duplicate orders or decrement inventory twice.
 - Sessions use HttpOnly, SameSite=Lax cookies that are Secure in production.
   Passwords are bcrypt-hashed. Card fields are not sent to the API or stored;
   checkout is still a simulated payment flow.
@@ -120,5 +122,6 @@ PostgreSQL records.
 - Currency formatting defaults to INR in `src/utils/formatCurrency.js`.
 - The payment form is for the demo only. For a real launch, use hosted payment
   fields such as Stripe Elements or Razorpay Checkout; never send raw card
-  details to this API.
+  details to this API. Current card checks only validate supported formats
+  locally; they do not authorize a charge. Demo orders remain `simulated`.
 - Interactive icons and form fields include accessible labels and focus states.

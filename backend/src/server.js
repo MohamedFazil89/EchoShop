@@ -1,5 +1,5 @@
 import "./config.js";
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import cookieParser from "cookie-parser";
 import express from "express";
 import helmet from "helmet";
@@ -505,125 +505,184 @@ app.delete("/api/wishlist", requireAuth, asyncRoute(async (request, response) =>
   response.status(204).end();
 }));
 
+async function findOrderByAttempt(orderNumber, userId, queryable = pool) {
+  const orderResult = await queryable.query(
+    `SELECT id, order_number, user_id, buyer_name, buyer_email, buyer_phone,
+       shipping_address, status, payment_status, subtotal_minor, discount_minor,
+       shipping_minor, tax_minor, total_minor, currency, created_at
+     FROM orders
+     WHERE order_number = $1 AND user_id IS NOT DISTINCT FROM $2`,
+    [orderNumber, userId]
+  );
+  if (orderResult.rowCount === 0) return null;
+
+  const order = orderResult.rows[0];
+  const itemsResult = await queryable.query(
+    `SELECT product_id AS id, product_title AS title, product_image AS image,
+       quantity, unit_price_minor
+     FROM order_items WHERE order_id = $1 ORDER BY product_title`,
+    [order.id]
+  );
+  return {
+    ...order,
+    items: itemsResult.rows.map((item) => ({
+      id: item.id,
+      title: item.title,
+      image: item.image,
+      quantity: item.quantity,
+      price: Number(item.unit_price_minor) / 100,
+    })),
+  };
+}
+
 app.post("/api/orders", optionalAuth, asyncRoute(async (request, response) => {
+  const idempotencyKey = request.get("Idempotency-Key");
+  if (
+    typeof idempotencyKey !== "string" ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idempotencyKey)
+  ) {
+    throw badRequest("A valid order attempt key is required.");
+  }
+  const orderNumber = `ORD-${idempotencyKey.replace(/-/g, "").toUpperCase()}`;
   const customer = request.body?.customer;
   const buyerName = requiredString(customer?.name, "Name", 160);
   const buyerEmail = validateEmail(customer?.email);
   const buyerPhone = requiredString(customer?.phone ?? "", "Phone", 40, { allowEmpty: true });
   const shippingAddress = validateAddress(customer?.shippingAddress);
 
-  const order = await withTransaction(async (client) => {
-    let items;
-    if (request.user) {
-      await client.query("SELECT id FROM users WHERE id = $1 FOR UPDATE", [request.user.id]);
-      const cartId = await getOrCreateCart(client, request.user.id);
-      items = await client.query(
-        `SELECT product_id AS id, quantity FROM cart_items
-         WHERE cart_id = $1 ORDER BY product_id`,
-        [cartId]
-      );
-      items = items.rows;
-    } else {
-      items = validateOrderItems(request.body?.items);
+  let order = await findOrderByAttempt(orderNumber, request.user?.id ?? null);
+  if (!order) {
+    try {
+      order = await withTransaction(async (client) => {
+        if (request.user) {
+          await client.query("SELECT id FROM users WHERE id = $1 FOR UPDATE", [request.user.id]);
+        }
+        const existingOrder = await findOrderByAttempt(
+          orderNumber,
+          request.user?.id ?? null,
+          client
+        );
+        if (existingOrder) return existingOrder;
+
+        let items;
+        if (request.user) {
+          const cartId = await getOrCreateCart(client, request.user.id);
+          items = await client.query(
+            `SELECT product_id AS id, quantity FROM cart_items
+             WHERE cart_id = $1 ORDER BY product_id`,
+            [cartId]
+          );
+          items = items.rows;
+        } else {
+          items = validateOrderItems(request.body?.items);
+        }
+        if (!items.length) throw badRequest("Your cart is empty.");
+
+        const productIds = items.map((item) => item.id).sort();
+        const productsResult = await client.query(
+          `SELECT id, sku, title, images, price_minor, stock
+           FROM products WHERE id = ANY($1::text[]) ORDER BY id FOR UPDATE`,
+          [productIds]
+        );
+        if (productsResult.rowCount !== productIds.length) {
+          throw notFound("A product is no longer available.");
+        }
+        const productsById = new Map(productsResult.rows.map((product) => [product.id, product]));
+
+        let subtotalMinor = 0;
+        const orderItems = items.map((item) => {
+          const product = productsById.get(item.id);
+          if (item.quantity > product.stock) {
+            throw conflict(`${product.title} no longer has enough stock.`);
+          }
+          const unitPriceMinor = Number(product.price_minor);
+          subtotalMinor += unitPriceMinor * item.quantity;
+          return { ...item, product, unitPriceMinor };
+        });
+        const shippingMinor = subtotalMinor === 0 || subtotalMinor >= FREE_SHIPPING_MINOR
+          ? 0
+          : FLAT_SHIPPING_MINOR;
+        const totalMinor = subtotalMinor + shippingMinor;
+        const orderId = randomUUID();
+
+        const orderResult = await client.query(
+          `INSERT INTO orders (
+             id, order_number, user_id, buyer_name, buyer_email, buyer_phone,
+             shipping_address, subtotal_minor, shipping_minor, total_minor
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           RETURNING id, order_number, user_id, buyer_name, buyer_email, buyer_phone,
+             shipping_address, status, payment_status, subtotal_minor, discount_minor,
+             shipping_minor, tax_minor, total_minor, currency, created_at`,
+          [
+            orderId,
+            orderNumber,
+            request.user?.id ?? null,
+            buyerName,
+            buyerEmail,
+            buyerPhone,
+            shippingAddress,
+            subtotalMinor,
+            shippingMinor,
+            totalMinor,
+          ]
+        );
+
+        for (const item of orderItems) {
+          const stockUpdate = await client.query(
+            `UPDATE products SET stock = stock - $1, updated_at = NOW()
+             WHERE id = $2 AND stock >= $1 RETURNING stock`,
+            [item.quantity, item.id]
+          );
+          if (stockUpdate.rowCount === 0) {
+            throw conflict(`${item.product.title} is out of stock.`);
+          }
+          await client.query(
+            `INSERT INTO order_items (
+               id, order_id, product_id, sku, product_title, product_image,
+               quantity, unit_price_minor, line_total_minor
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+            [
+              randomUUID(),
+              orderId,
+              item.id,
+              item.product.sku,
+              item.product.title,
+              item.product.images[0] ?? "",
+              item.quantity,
+              item.unitPriceMinor,
+              item.unitPriceMinor * item.quantity,
+            ]
+          );
+        }
+
+        if (request.user) {
+          await client.query(
+            `UPDATE users SET name = $1, email = lower($2), phone = $3,
+               shipping_address = $4, updated_at = NOW() WHERE id = $5`,
+            [buyerName, buyerEmail, buyerPhone, shippingAddress, request.user.id]
+          );
+          await client.query("DELETE FROM cart_items WHERE cart_id = $1", [
+            await getOrCreateCart(client, request.user.id),
+          ]);
+        }
+
+        return {
+          ...orderResult.rows[0],
+          items: orderItems.map((item) => ({
+            id: item.id,
+            title: item.product.title,
+            image: item.product.images[0] ?? "",
+            quantity: item.quantity,
+            price: item.unitPriceMinor / 100,
+          })),
+        };
+      });
+    } catch (error) {
+      if (error.code !== "23505") throw error;
+      order = await findOrderByAttempt(orderNumber, request.user?.id ?? null);
+      if (!order) throw error;
     }
-    if (!items.length) throw badRequest("Your cart is empty.");
-
-    const productIds = items.map((item) => item.id).sort();
-    const productsResult = await client.query(
-      `SELECT id, sku, title, images, price_minor, stock
-       FROM products WHERE id = ANY($1::text[]) ORDER BY id FOR UPDATE`,
-      [productIds]
-    );
-    if (productsResult.rowCount !== productIds.length) throw notFound("A product is no longer available.");
-    const productsById = new Map(productsResult.rows.map((product) => [product.id, product]));
-
-    let subtotalMinor = 0;
-    const orderItems = items.map((item) => {
-      const product = productsById.get(item.id);
-      if (item.quantity > product.stock) {
-        throw conflict(`${product.title} no longer has enough stock.`);
-      }
-      const unitPriceMinor = Number(product.price_minor);
-      subtotalMinor += unitPriceMinor * item.quantity;
-      return { ...item, product, unitPriceMinor };
-    });
-    const shippingMinor = subtotalMinor === 0 || subtotalMinor >= FREE_SHIPPING_MINOR
-      ? 0
-      : FLAT_SHIPPING_MINOR;
-    const totalMinor = subtotalMinor + shippingMinor;
-    const orderId = randomUUID();
-    const orderNumber = `ORD-${Date.now()}-${randomBytes(3).toString("hex").toUpperCase()}`;
-
-    const orderResult = await client.query(
-      `INSERT INTO orders (
-         id, order_number, user_id, buyer_name, buyer_email, buyer_phone,
-         shipping_address, subtotal_minor, shipping_minor, total_minor
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-       RETURNING id, order_number, user_id, buyer_name, buyer_email, buyer_phone,
-         shipping_address, status, payment_status, subtotal_minor, discount_minor,
-         shipping_minor, tax_minor, total_minor, currency, created_at`,
-      [
-        orderId,
-        orderNumber,
-        request.user?.id ?? null,
-        buyerName,
-        buyerEmail,
-        buyerPhone,
-        shippingAddress,
-        subtotalMinor,
-        shippingMinor,
-        totalMinor,
-      ]
-    );
-
-    for (const item of orderItems) {
-      const stockUpdate = await client.query(
-        `UPDATE products SET stock = stock - $1, updated_at = NOW()
-         WHERE id = $2 AND stock >= $1 RETURNING stock`,
-        [item.quantity, item.id]
-      );
-      if (stockUpdate.rowCount === 0) throw conflict(`${item.product.title} is out of stock.`);
-      await client.query(
-        `INSERT INTO order_items (
-           id, order_id, product_id, sku, product_title, product_image,
-           quantity, unit_price_minor, line_total_minor
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [
-          randomUUID(),
-          orderId,
-          item.id,
-          item.product.sku,
-          item.product.title,
-          item.product.images[0] ?? "",
-          item.quantity,
-          item.unitPriceMinor,
-          item.unitPriceMinor * item.quantity,
-        ]
-      );
-    }
-
-    if (request.user) {
-      await client.query(
-        `UPDATE users SET name = $1, email = lower($2), phone = $3,
-           shipping_address = $4, updated_at = NOW() WHERE id = $5`,
-        [buyerName, buyerEmail, buyerPhone, shippingAddress, request.user.id]
-      );
-      await client.query("DELETE FROM cart_items WHERE cart_id = $1", [
-        await getOrCreateCart(client, request.user.id),
-      ]);
-    }
-
-    return {
-      ...orderResult.rows[0],
-      items: orderItems.map((item) => ({
-        id: item.id,
-        title: item.product.title,
-        image: item.product.images[0] ?? "",
-        quantity: item.quantity,
-        price: item.unitPriceMinor / 100,
-      })),
-    };
-  });
+  }
   response.status(201).json({
     order: {
       ...order,

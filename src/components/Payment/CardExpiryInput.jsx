@@ -1,17 +1,13 @@
-import { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   formatExpiry,
-  sanitizeDigits,
-  parseExpiry,
-  validateExpiry,
   getExpiryError,
 } from "../../utils/payment";
 
 /**
  * Expiry date input with:
- * - Format as "MM / YY", digits only, max 4 digits
+ * - Format as "MM / YY" or "MM / YYYY"
  * - Auto-insert the separator after 2 digits
- * - Prefix "0" if first digit is 2-9 (e.g., typing "5" becomes "05 / ")
  * - inputmode="numeric", autocomplete="cc-exp", autocorrect="off", spellcheck="false"
  * - Validation: month 01-12, not in the past, not more than 20 years ahead
  * - Inline error messages, red border, aria-invalid, aria-describedby
@@ -49,11 +45,8 @@ export function CardExpiryInput({
   // Handle input changes
   const handleChange = useCallback(
     (e) => {
-      const raw = e.target.value;
-      const sanitized = sanitizeDigits(raw);
-
-      // Format with automatic separator insertion
-      const formatted = formatExpiry(sanitized);
+      const digits = e.target.value.replace(/\D/g, "").slice(0, 6);
+      const formatted = formatExpiry(digits);
 
       setDisplayValue(formatted);
       if (onChange) onChange(formatted);
@@ -66,8 +59,8 @@ export function CardExpiryInput({
     (e) => {
       e.preventDefault();
       const pasteData = e.clipboardData.getData("text");
-      const sanitized = sanitizeDigits(pasteData);
-      const formatted = formatExpiry(sanitized);
+      const digits = pasteData.replace(/\D/g, "").slice(0, 6);
+      const formatted = formatExpiry(digits);
       setDisplayValue(formatted);
       if (onChange) onChange(formatted);
     },
@@ -93,13 +86,13 @@ export function CardExpiryInput({
           required={required}
           placeholder={placeholder}
           inputMode="numeric"
+          maxLength={9}
           autoComplete="cc-exp"
           autoCorrect="off"
           spellCheck={false}
           aria-invalid={hasError ? "true" : "false"}
           aria-describedby={errorMessage ? errorId : undefined}
           className={`input-field ${hasError ? "border-red-500 focus:border-red-500" : ""}`}
-          maxLength={7} // "MM / YY" is 5 chars plus 2 spaces for safety
         />
         {errorMessage && (
           <p

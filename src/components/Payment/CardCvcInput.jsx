@@ -1,15 +1,12 @@
-import { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
-  sanitizeDigits,
-  validateCvc,
   getCvcError,
   getCvcLengthForBrand,
-  detectCardBrand,
 } from "../../utils/payment";
 
 /**
  * CVC/AVS input with:
- * - Digits only, max 3 digits (4 for Amex, based on detected brand)
+ * - Accepts only digits; limits length to 3 (4 for Amex)
  * - inputmode="numeric", autocomplete="cc-csc", autocorrect="off", spellcheck="false"
  * - Brand-aware validation (3 digits for Visa/MC/RuPay, 4 for Amex)
  * - Inline error messages, red border, aria-invalid, aria-describedby
@@ -49,13 +46,11 @@ export function CardCvcInput({
   // Handle input changes
   const handleChange = useCallback(
     (e) => {
-      const raw = e.target.value;
-      const sanitized = sanitizeDigits(raw);
-      const capped = sanitized.slice(0, cvcLength);
-      setDisplayValue(capped);
-      if (onChange) onChange(capped);
+      const raw = e.target.value.replace(/\D/g, "").slice(0, cvcLength);
+      setDisplayValue(raw);
+      if (onChange) onChange(raw);
     },
-    [onChange, cvcLength]
+    [cvcLength, onChange]
   );
 
   // Handle paste - strip non-digits automatically
@@ -63,12 +58,11 @@ export function CardCvcInput({
     (e) => {
       e.preventDefault();
       const pasteData = e.clipboardData.getData("text");
-      const sanitized = sanitizeDigits(pasteData);
-      const capped = sanitized.slice(0, cvcLength);
-      setDisplayValue(capped);
-      if (onChange) onChange(capped);
+      const digits = pasteData.replace(/\D/g, "").slice(0, cvcLength);
+      setDisplayValue(digits);
+      if (onChange) onChange(digits);
     },
-    [onChange, cvcLength]
+    [cvcLength, onChange]
   );
 
   // Compute error state
@@ -94,13 +88,13 @@ export function CardCvcInput({
           required={required}
           placeholder={actualPlaceholder}
           inputMode="numeric"
+          maxLength={cvcLength}
           autoComplete="cc-csc"
           autoCorrect="off"
           spellCheck={false}
           aria-invalid={hasError ? "true" : "false"}
           aria-describedby={errorMessage ? errorId : undefined}
           className={`input-field ${hasError ? "border-red-500 focus:border-red-500" : ""}`}
-          maxLength={cvcLength}
         />
         {errorMessage && (
           <p

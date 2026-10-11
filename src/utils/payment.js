@@ -19,28 +19,20 @@ const BRAND = {
   UNKNOWN: "unknown",
 };
 
-// Accepted BIN prefixes and expected total length for known brands.
-const BRAND_PREFIXES = [
-  // Amex: 34xx, 37xx → 15 digits, CVC 4
-  { brand: BRAND.AMEX, prefixes: ["34", "37"], length: 15, cvc: 4 },
-  // Mastercard: 51-55, 2221-2720 → 16 digits, CVC 3
-  { brand: BRAND.MASTERCARD, prefixes: ["51", "52", "53", "54", "55"], length: 16, cvc: 3 },
-  { brand: BRAND.MASTERCARD, prefixes: ["2221", "2222", "2223", "2224", "2225", "2226", "2227", "2228", "2229", "2230", "2231", "2232", "2233", "2234", "2235", "2236", "2237", "2238", "2239", "2240", "2241", "2242", "2243", "2244", "2245", "2246", "2247", "2248", "2249", "2250", "2251", "2252", "2253", "2254", "2255", "2256", "2257", "2258", "2259", "2260", "2261", "2262", "2263", "2264", "2265", "2266", "2267", "2268", "2269", "2270", "2271", "2272", "2273", "2274", "2275", "2276", "2277", "2278", "2279"], length: 16, cvc: 3 },
-  // RuPay: 60, 65, 64, 62 → 16 digits, CVC 3 (some 13-19)
-  { brand: BRAND.RUPAY, prefixes: ["60", "65", "64", "62"], length: 16, cvc: 3 },
-  // Visa: 4 → 13-19 digits, CVC 3
-  { brand: BRAND.VISA, prefixes: ["4"], length: 16, cvc: 3 },
-];
-
-// Visa has a special expanded prefix range (40-49) handled by the generic "4" rule above,
-// but Visa also covers 40, 41, 42, 43, 44, 45, 46, 47, 48, 49.
-BRAND_PREFIXES[3].length = 16;
-BRAND_PREFIXES[3].cvc = 3;
-
 const MAX_CARD_DIGITS = 19;
-const MAX_EXPIRY_DIGITS = 4;
-const MAX_CVC_DIGITS = 4;
-const YEAR_AHEAD_LIMIT = 20; // years ahead allowed for expiry
+const YEAR_AHEAD_LIMIT_MONTHS = 20 * 12;
+
+function cardDigits(value) {
+  if (typeof value !== "string" || !/^[\d\s-]*$/.test(value)) return null;
+  return value.replace(/[\s-]/g, "");
+}
+
+const cardLengths = {
+  [BRAND.VISA]: [13, 16, 19],
+  [BRAND.MASTERCARD]: [16],
+  [BRAND.AMEX]: [15],
+  [BRAND.RUPAY]: [16],
+};
 
 // ---------------------------------------------------------------------------
 // Brand detection
@@ -48,23 +40,19 @@ const YEAR_AHEAD_LIMIT = 20; // years ahead allowed for expiry
 
 /**
  * Detect the card brand from the raw card number (digits only).
- * Uses BIN-prefix rules. Falls back to generic digit-count heuristics.
+ * Uses supported BIN-prefix rules and returns unknown for all other numbers.
  */
 export function detectCardBrand(rawNumber) {
-  const digits = (rawNumber || "").replace(/\s|-/g, "");
-  if (!/^\d{4,}$/.test(digits)) return BRAND.UNKNOWN;
+  const digits = cardDigits(rawNumber);
+  if (!digits) return BRAND.UNKNOWN;
 
-  for (const { brand, prefixes, length } of BRAND_PREFIXES) {
-    for (const prefix of prefixes) {
-      if (digits.startsWith(prefix)) return brand;
-    }
+  if (digits.startsWith("4")) return BRAND.VISA;
+  if (digits.startsWith("34") || digits.startsWith("37")) return BRAND.AMEX;
+  if (/^5[1-5]/.test(digits)) return BRAND.MASTERCARD;
+  if (digits.length >= 4 && Number(digits.slice(0, 4)) >= 2221 && Number(digits.slice(0, 4)) <= 2720) {
+    return BRAND.MASTERCARD;
   }
-
-  // Length-based fallback for unrecognized but plausible numbers.
-  if (digits.length === 15) return BRAND.AMEX;
-  if (digits.length === 16) return BRAND.MASTERCARD;
-  if (digits.length >= 13 && digits.length <= 19) return BRAND.VISA;
-
+  if (/^(60|62|64|65)/.test(digits)) return BRAND.RUPAY;
   return BRAND.UNKNOWN;
 }
 
@@ -98,9 +86,20 @@ export function getCvcLengthForBrand(brand) {
  * Maximum number of digits for a brand (based on known length, capped by global max).
  */
 export function getMaxLengthForBrand(brand) {
-  const spec = BRAND_PREFIXES.find((p) => p.brand === brand);
-  if (!spec) return MAX_CARD_DIGITS;
-  return Math.min(spec.length, MAX_CARD_DIGITS);
+  return Math.max(...(cardLengths[brand] ?? [MAX_CARD_DIGITS]));
+}
+
+export function getMaxLengthForCardNumber(value) {
+  const digits = sanitizeDigits(value);
+  const brand = detectCardBrand(digits);
+  if (brand !== BRAND.UNKNOWN) return getMaxLengthForBrand(brand);
+
+  if (/^2/.test(digits)) {
+    const prefix = Number(digits.slice(0, 4).padEnd(4, "0"));
+    const upperBound = Number(digits.slice(0, 4).padEnd(4, "9"));
+    if (prefix <= 2720 && upperBound >= 2221) return cardLengths[BRAND.MASTERCARD][0];
+  }
+  return MAX_CARD_DIGITS;
 }
 
 // ---------------------------------------------------------------------------
@@ -115,26 +114,23 @@ export function sanitizeDigits(value) {
 }
 
 /**
- * Format a card number: groups of 4, Amex 4-6-5. Max 19 digits.
+ * Format card digits for display. Excess digits remain visible for validation.
  */
 export function formatCardNumber(value) {
+  if (cardDigits(value) === null) return value;
   const digits = sanitizeDigits(value);
   const brand = detectCardBrand(digits);
-  const max = getMaxLengthForBrand(brand);
-  const capped = digits.slice(0, max);
 
   if (brand === BRAND.AMEX) {
-    // 4-6-5
-    const g1 = capped.slice(0, 4);
-    const g2 = capped.slice(4, 10);
-    const g3 = capped.slice(10, 15);
+    const g1 = digits.slice(0, 4);
+    const g2 = digits.slice(4, 10);
+    const g3 = digits.slice(10);
     return [g1, g2, g3].filter(Boolean).join(" ");
   }
 
-  // 4-4-4-4
-  return capped
+  return digits
     .match(new RegExp(`.{1,4}`, "g"))
-    ?.join(" ") ?? capped;
+    ?.join(" ") ?? digits;
 }
 
 /**
@@ -152,44 +148,78 @@ export function maskCardNumber(number) {
 // ---------------------------------------------------------------------------
 
 /**
- * Format expiry as "MM / YY", auto-inserting the separator and padding month with leading 0.
+ * Format an expiry as "MM / YY" or "MM / YYYY" without discarding invalid input.
  */
 export function formatExpiry(value) {
-  const digits = sanitizeDigits(value);
-  const capped = digits.slice(0, MAX_EXPIRY_DIGITS);
+  if (typeof value !== "string" || !/^[\d\s/-]*$/.test(value)) return value;
+  const trimmed = value.trim();
+  if (!trimmed) return "";
 
-  if (capped.length === 0) return "";
-  if (capped.length <= 2) return capped;
+  const separated = /^(\d{1,2})\s*(?:\/|-|\s+)\s*(\d{0,4})$/.exec(trimmed);
+  if (separated) {
+    return separated[2] ? `${separated[1]} / ${separated[2]}` : `${separated[1]} /`;
+  }
+  if (!/^\d+$/.test(trimmed)) return value;
 
-  const mm = capped.slice(0, 2);
-  const yy = capped.slice(2, 4);
-  return `${mm} / ${yy}`;
+  const digits = trimmed;
+  if (digits.length <= 2) return digits;
+  if (digits.length === 3 && Number(digits.slice(0, 2)) > 12) {
+    return `${digits[0]} / ${digits.slice(1)}`;
+  }
+  return `${digits.slice(0, 2)} / ${digits.slice(2)}`;
 }
 
 /**
  * Parse an expiry string into { month, year, rawMonth, rawYear }.
- * "05/25" or "5/25" or "05 25" all work; non-digit separators are tolerated.
+ * Accepts slash, hyphen, or whitespace separators.
  */
 export function parseExpiry(value) {
-  const digits = sanitizeDigits(value);
-  if (digits.length < 2) {
-    return { month: null, year: null, rawMonth: null, rawYear: null, complete: digits.length === 2 };
+  if (typeof value !== "string") {
+    return { month: null, year: null, rawMonth: null, rawYear: null, yearDigits: 0, complete: false };
+  }
+  const trimmed = value.trim();
+  let rawMonth;
+  let rawYear;
+  const separated = /^(\d{1,2})\s*(?:\/|-|\s+)\s*(\d{0,4})$/.exec(trimmed);
+
+  if (separated) {
+    [, rawMonth, rawYear] = separated;
+  } else if (/^\d{1,6}$/.test(trimmed)) {
+    if (trimmed.length <= 2) {
+      rawMonth = trimmed;
+      rawYear = "";
+    } else if (trimmed.length === 3 && Number(trimmed.slice(0, 2)) > 12) {
+      rawMonth = trimmed.slice(0, 1);
+      rawYear = trimmed.slice(1);
+    } else {
+      rawMonth = trimmed.slice(0, 2);
+      rawYear = trimmed.slice(2);
+    }
+  } else {
+    return { month: null, year: null, rawMonth: null, rawYear: null, yearDigits: 0, complete: false };
   }
 
-  const rawMonth = digits.slice(0, 2);
-  const rawYear = digits.slice(2, 4);
-  const month = parseInt(rawMonth, 10);
-  const year = parseInt(rawYear, 10);
-
-  return { month, year, rawMonth, rawYear, complete: digits.length === 4 };
+  const month = rawMonth ? Number(rawMonth) : null;
+  const complete = rawYear.length === 2 || rawYear.length === 4;
+  return {
+    month,
+    year: complete ? Number(rawYear) : null,
+    rawMonth,
+    rawYear,
+    yearDigits: rawYear.length,
+    complete,
+  };
 }
 
 /**
  * Normalize a 2-digit year to a full year based on "now".
  */
 export function normalizeTwoDigitYear(yy, now = new Date()) {
-  const century = now.getFullYear() - (now.getFullYear() % 100);
-  return yy > 50 ? century - 100 + yy : century + yy;
+  if (!Number.isInteger(yy) || yy < 0 || yy > 99) return yy;
+  const currentYear = now.getFullYear();
+  let year = Math.floor(currentYear / 100) * 100 + yy;
+  if ((year - currentYear) * 12 > YEAR_AHEAD_LIMIT_MONTHS) year -= 100;
+  return year;
 }
 
 // ---------------------------------------------------------------------------
@@ -200,8 +230,8 @@ export function normalizeTwoDigitYear(yy, now = new Date()) {
  * Luhn algorithm check.
  */
 export function luhnCheck(number) {
-  const digits = sanitizeDigits(number);
-  if (!/^\d+$/.test(digits)) return false;
+  const digits = cardDigits(number);
+  if (!digits || !/^\d+$/.test(digits)) return false;
   if (digits.length < 2) return false;
 
   let sum = 0;
@@ -226,24 +256,25 @@ export function luhnCheck(number) {
  * Validate a full card number: Luhn + length per brand.
  */
 export function validateCardNumber(number, brandOverride = null) {
-  const digits = sanitizeDigits(number);
-
-  // Empty → leave empty validation to the required-flag; a value must at least look numeric.
-  if (digits.length === 0) return { valid: true, reason: null };
-
-  const brand = brandOverride || detectCardBrand(digits);
-
-  if (!/^\d{13,19}$/.test(digits)) {
+  const digits = cardDigits(number);
+  if (digits === null) return { valid: false, reason: "Enter a valid card number" };
+  if (!digits) return { valid: false, reason: "Enter your card number" };
+  if (!/^\d+$/.test(digits) || digits.length < 12 || digits.length > MAX_CARD_DIGITS) {
     return { valid: false, reason: "Enter a valid card number" };
   }
 
-  if (!luhnCheck(digits)) {
-    return { valid: false, reason: "Card number failed the security check" };
+  const brand = detectCardBrand(digits);
+  if (brand === BRAND.UNKNOWN || (brandOverride && brandOverride !== brand)) {
+    return { valid: false, reason: "Enter a card number from a supported network" };
   }
-
-  const allowed = getMaxLengthForBrand(brand);
-  if (digits.length !== allowed) {
-    return { valid: false, reason: `Enter a valid ${getBrandLabel(brand)} number (${allowed} digits)` };
+  if (!cardLengths[brand].includes(digits.length)) {
+    return {
+      valid: false,
+      reason: `Enter a valid ${getBrandLabel(brand)} number (${cardLengths[brand].join(", ")} digits)`,
+    };
+  }
+  if (!luhnCheck(digits)) {
+    return { valid: false, reason: "Card number checksum is invalid" };
   }
 
   return { valid: true, reason: null };
@@ -252,39 +283,33 @@ export function validateCardNumber(number, brandOverride = null) {
 /**
  * Validate expiry date.
  * - month 01-12
- * - not in the past (month and year), using start of the current month
+ * - the current month remains valid; earlier months are expired
  * - not more than 20 years ahead
  */
-export function validateExpiry(value) {
-  const digits = sanitizeDigits(value);
-
-  if (digits.length === 0) return { valid: true, reason: null };
-
-  const { month, year, rawMonth, rawYear, complete } = parseExpiry(value);
-
-  if (month === null || year === null) {
-    return { valid: false, reason: complete ? "Invalid expiry date" : null };
+export function validateExpiry(value, now = new Date()) {
+  if (typeof value !== "string" || !value.trim()) {
+    return { valid: false, reason: "Enter the expiry date" };
+  }
+  const { month, year, yearDigits, complete } = parseExpiry(value);
+  if (month === null || !complete || year === null) {
+    return { valid: false, reason: "Enter a valid expiry date" };
   }
 
   if (month < 1 || month > 12) {
     return { valid: false, reason: "Choose a valid month" };
   }
 
-  const now = new Date();
+  if ((yearDigits === 2 && year === 0) || (yearDigits === 4 && year < 1)) {
+    return { valid: false, reason: "Enter a valid expiry date" };
+  }
   const currentMonth = now.getMonth() + 1;
   const currentYear = now.getFullYear();
-  const fullYear = normalizeTwoDigitYear(year);
-
-  if (fullYear < currentYear) {
+  const fullYear = yearDigits === 2 ? normalizeTwoDigitYear(year, now) : year;
+  const monthDifference = (fullYear - currentYear) * 12 + month - currentMonth;
+  if (monthDifference < 0) {
     return { valid: false, reason: "Card has expired" };
   }
-
-  if (fullYear === currentYear && month < currentMonth) {
-    return { valid: false, reason: "Card has expired" };
-  }
-
-  const yearsAhead = fullYear - currentYear;
-  if (yearsAhead > YEAR_AHEAD_LIMIT) {
+  if (monthDifference > YEAR_AHEAD_LIMIT_MONTHS) {
     return { valid: false, reason: "Card cannot be valid more than 20 years ahead" };
   }
 
@@ -295,22 +320,17 @@ export function validateExpiry(value) {
  * Validate CVC: correct length for the detected brand.
  */
 export function validateCvc(number, brandOverride = null) {
-  const digits = sanitizeDigits(number);
-
-  if (digits.length === 0) return { valid: true, reason: null };
-
-  const brand = brandOverride || detectCardBrand("0000000000000000"); // fallback brand if no card number yet
-  const expected = getCvcLengthForBrand(brand);
-
-  if (!/^\d+$/.test(digits)) {
+  if (typeof number !== "string" || !number.trim()) {
     return { valid: false, reason: "Enter the CVC" };
   }
-
-  if (digits.length < expected) {
+  const value = number.trim();
+  if (!/^\d+$/.test(value)) return { valid: false, reason: "Enter a valid CVC" };
+  const brand = brandOverride || BRAND.UNKNOWN;
+  const expected = getCvcLengthForBrand(brand);
+  if (value.length < expected) {
     return { valid: false, reason: `Enter the ${expected}-digit CVC` };
   }
-
-  if (digits.length > expected) {
+  if (value.length > expected) {
     return { valid: false, reason: `CVC must be ${expected} digit${expected === 1 ? "" : "s"}` };
   }
 
@@ -325,8 +345,6 @@ export function validateCvc(number, brandOverride = null) {
  * Produce the error message for a card field given its current value.
  */
 export function getCardNumberError(number, brandOverride = null) {
-  const digits = sanitizeDigits(number);
-  if (digits.length === 0) return null;
   return validateCardNumber(number, brandOverride).reason;
 }
 
@@ -335,9 +353,17 @@ export function getExpiryError(value) {
 }
 
 export function getCvcError(number, brandOverride = null) {
-  const digits = sanitizeDigits(number);
-  if (digits.length === 0) return null;
   return validateCvc(number, brandOverride).reason;
+}
+
+export function validatePaymentDetails({ cardNumber, expiry, cvc }, now = new Date()) {
+  const brand = detectCardBrand(cardNumber);
+  const errors = {
+    cardNumber: validateCardNumber(cardNumber, brand === BRAND.UNKNOWN ? null : brand).reason,
+    expiry: validateExpiry(expiry, now).reason,
+    cvc: validateCvc(cvc, brand).reason,
+  };
+  return { valid: Object.values(errors).every((error) => error === null), errors };
 }
 
 // ---------------------------------------------------------------------------

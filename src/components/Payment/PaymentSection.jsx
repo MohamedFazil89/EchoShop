@@ -1,147 +1,68 @@
-import { useState, useCallback, useEffect } from "react";
-import { detectCardBrand, validateCardNumber, validateExpiry, validateCvc } from "../../utils/payment";
+import React, { useCallback, useRef, useState } from "react";
+import {
+  detectCardBrand,
+  getCvcLengthForBrand,
+  validatePaymentDetails,
+} from "../../utils/payment";
 import { CardNumberInput } from "./CardNumberInput";
 import { CardExpiryInput } from "./CardExpiryInput";
 import { CardCvcInput } from "./CardCvcInput";
 import { Lock } from "lucide-react";
 
-/**
- * PaymentSection - The complete payment form section.
- *
- * Features:
- * - Hosted-field-style inputs with full validation
- * - Brand detection with icon
- * - Validation on blur and submit
- * - Demo mode notice
- * - Loading state with spinner, double-click prevention
- * - Idempotency key for order attempts
- * - Proper accessibility: labels, aria-invalid, aria-describedby, role="alert"
- * - Keyboard navigable, mobile-friendly (font-size >= 16px via input-field)
- */
-export function PaymentSection({
-  form,
-  update,
-  isSubmitting,
-  onSubmit,
-  disabled = false,
-}) {
-  // Form state for card fields
-  const [cardNumber, setCardNumber] = useState(form.cardNumber || "");
-  const [expiry, setExpiry] = useState(form.expiry || "");
-  const [cvc, setCvc] = useState(form.cvc || "");
+const fields = ["cardNumber", "expiry", "cvc"];
 
-  // Brand detection from card number
-  const [cardBrand, setCardBrand] = useState(() => detectCardBrand(cardNumber));
-  const [showBrandIcon, setShowBrandIcon] = useState(!!cardNumber.trim());
+export function PaymentSection({ validationRef, isSubmitting, disabled = false }) {
+  const [values, setValues] = useState({ cardNumber: "", expiry: "", cvc: "" });
+  const [errors, setErrors] = useState({ cardNumber: null, expiry: null, cvc: null });
+  const [touched, setTouched] = useState({ cardNumber: false, expiry: false, cvc: false });
+  const submitted = useRef(false);
+  const cardBrand = detectCardBrand(values.cardNumber);
 
-  // Validation errors (for submit-time)
-  const [errors, setErrors] = useState({
-    cardNumber: null,
-    expiry: null,
-    cvc: null,
-  });
-
-  // Touched state for blur validation
-  const [touched, setTouched] = useState({
-    cardNumber: false,
-    expiry: false,
-    cvc: false,
-  });
-
-  // Update brand when card number changes
-  useEffect(() => {
-    const brand = detectCardBrand(cardNumber);
-    setCardBrand(brand);
-    setShowBrandIcon(cardNumber.trim().length > 0);
-  }, [cardNumber]);
-
-  // Sync form state with parent
-  useEffect(() => {
-    if (form.cardNumber !== cardNumber) setCardNumber(form.cardNumber || "");
-    if (form.expiry !== expiry) setExpiry(form.expiry || "");
-    if (form.cvc !== cvc) setCvc(form.cvc || "");
-  }, [form]);
-
-  // Validation on blur
-  const validateField = useCallback((field) => {
-    let error = null;
-    switch (field) {
-      case "cardNumber":
-        error = validateCardNumber(cardNumber, cardBrand).reason;
-        break;
-      case "expiry":
-        error = validateExpiry(expiry).reason;
-        break;
-      case "cvc":
-        error = validateCvc(cvc, cardBrand).reason;
-        break;
-    }
-    setErrors((prev) => ({ ...prev, [field]: error }));
-  }, [cardNumber, expiry, cvc, cardBrand]);
-
-  const handleBlur = useCallback((field) => (e) => {
-    setTouched((prev) => ({ ...prev, [field]: true }));
-    validateField(field);
-  }, [validateField]);
-
-  const handleChange = useCallback((field) => (value) => {
-    update(field)(value);
-    // Clear error as soon as user starts fixing it
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: null }));
-    }
-  }, [update, errors]);
-
-  // Full form validation
   const validateAll = useCallback(() => {
-    const cardNumberError = validateCardNumber(cardNumber, cardBrand).reason;
-    const expiryError = validateExpiry(expiry).reason;
-    const cvcError = validateCvc(cvc, cardBrand).reason;
-
-    const newErrors = {
-      cardNumber: cardNumberError,
-      expiry: expiryError,
-      cvc: cvcError,
-    };
-
-    setErrors(newErrors);
+    submitted.current = true;
+    const result = validatePaymentDetails(values);
     setTouched({ cardNumber: true, expiry: true, cvc: true });
+    setErrors(result.errors);
 
-    return { cardNumberError, expiryError, cvcError };
-  }, [cardNumber, expiry, cvc, cardBrand]);
+    if (!result.valid) {
+      const firstInvalidField = fields.find((field) => result.errors[field]);
+      const inputIds = {
+        cardNumber: "card-number",
+        expiry: "card-expiry",
+        cvc: "card-cvc",
+      };
+      document.getElementById(inputIds[firstInvalidField])?.focus();
+    }
+    return result.valid;
+  }, [values]);
 
-  // Check if all fields are valid
-  const isValid =
-    !validateCardNumber(cardNumber, cardBrand).reason &&
-    !validateExpiry(expiry).reason &&
-    !validateCvc(cvc, cardBrand).reason &&
-    cardNumber.trim().length > 0 &&
-    expiry.trim().length > 0 &&
-    cvc.trim().length > 0;
+  validationRef.current = validateAll;
 
-  // Handle submit
-  const handleSubmit = useCallback(
-    async (e) => {
-      e.preventDefault();
+  const handleChange = useCallback((field, value) => {
+    const nextValues = { ...values, [field]: value };
+    if (field === "cardNumber") {
+      const nextBrand = detectCardBrand(value);
+      nextValues.cvc = nextValues.cvc.slice(0, getCvcLengthForBrand(nextBrand));
+    }
+    const nextErrors = validatePaymentDetails(nextValues).errors;
+    setValues(nextValues);
+    setErrors((current) =>
+      Object.fromEntries(
+        fields.map((name) => [
+          name,
+          touched[name] || submitted.current ? nextErrors[name] : current[name],
+        ])
+      )
+    );
+  }, [values, touched]);
 
-      if (isSubmitting) return; // Double-click prevention
-      if (!isValid) {
-        const validationErrors = validateAll();
-        // Focus first invalid field
-        if (validationErrors.cardNumberError) {
-          document.getElementById("card-number")?.focus();
-        } else if (validationErrors.expiryError) {
-          document.getElementById("card-expiry")?.focus();
-        } else if (validationErrors.cvcError) {
-          document.getElementById("card-cvc")?.focus();
-        }
-        return;
-      }
-
-      onSubmit();
-    },
-    [isSubmitting, isValid, validateAll, onSubmit]
-  );
+  const handleBlur = useCallback((field) => {
+    setTouched((current) => ({ ...current, [field]: true }));
+    setErrors((current) => ({
+      ...current,
+      [field]: validatePaymentDetails(values).errors[field],
+    }));
+  }, [values]);
 
   return (
     <section>
@@ -157,9 +78,9 @@ export function PaymentSection({
         <CardNumberInput
           id="card-number"
           label="Card number"
-          value={cardNumber}
-          onChange={handleChange("cardNumber")}
-          onBlur={handleBlur("cardNumber")}
+          value={values.cardNumber}
+          onChange={(value) => handleChange("cardNumber", value)}
+          onBlur={() => handleBlur("cardNumber")}
           error={errors.cardNumber}
           disabled={disabled || isSubmitting}
           required
@@ -167,9 +88,9 @@ export function PaymentSection({
         <CardExpiryInput
           id="card-expiry"
           label="Expiry"
-          value={expiry}
-          onChange={handleChange("expiry")}
-          onBlur={handleBlur("expiry")}
+          value={values.expiry}
+          onChange={(value) => handleChange("expiry", value)}
+          onBlur={() => handleBlur("expiry")}
           error={errors.expiry}
           disabled={disabled || isSubmitting}
           required
@@ -177,9 +98,9 @@ export function PaymentSection({
         <CardCvcInput
           id="card-cvc"
           label="CVC"
-          value={cvc}
-          onChange={handleChange("cvc")}
-          onBlur={handleBlur("cvc")}
+          value={values.cvc}
+          onChange={(value) => handleChange("cvc", value)}
+          onBlur={() => handleBlur("cvc")}
           error={errors.cvc}
           cardBrand={cardBrand}
           disabled={disabled || isSubmitting}
@@ -189,7 +110,7 @@ export function PaymentSection({
 
       <p className="mt-3 flex items-center gap-1.5 text-xs text-ink-400">
         <Lock size={12} />
-        This is a demo form — no real payment is processed.
+        Demo only: card details are checked in this browser and never sent to the server. No payment is authorized or processed.
       </p>
     </section>
   );

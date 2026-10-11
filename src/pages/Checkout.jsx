@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { CheckCircle2, ShoppingBag } from "lucide-react";
 import EmptyState from "../components/ui/EmptyState";
@@ -18,9 +18,6 @@ const initialForm = {
   city: "",
   postalCode: "",
   state: "",
-  cardNumber: "",
-  expiry: "",
-  cvc: "",
 };
 
 export default function Checkout() {
@@ -37,10 +34,13 @@ export default function Checkout() {
       postalCode: user?.shippingAddress?.pincode ?? "",
     };
   });
+  const [orderAttemptId] = useState(() => crypto.randomUUID());
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [orderId, setOrderId] = useState("");
   const [paymentError, setPaymentError] = useState(null);
+  const paymentValidationRef = useRef(null);
+  const submissionLock = useRef(false);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -58,13 +58,20 @@ export default function Checkout() {
 
   const update = (field) => (value) => setForm((f) => ({ ...f, [field]: value }));
 
-  const handlePaymentSubmit = async () => {
+  const handleCheckoutSubmit = async (event) => {
+    event.preventDefault();
+    if (submissionLock.current || isPlacingOrder) return;
+
+    if (!paymentValidationRef.current?.()) return;
+    if (!event.currentTarget.reportValidity()) return;
+
+    submissionLock.current = true;
     setPaymentError(null);
     setIsPlacingOrder(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1200));
       const order = await createOrder({
         items,
+        idempotencyKey: orderAttemptId,
         customer: {
           name: form.fullName,
           email: form.email,
@@ -78,16 +85,17 @@ export default function Checkout() {
         },
       });
 
-      setIsPlacingOrder(false);
       setOrderId(order.id);
       setOrderPlaced(true);
       clearCart(false);
-      showToast("Order placed successfully!", { type: "success" });
+      showToast("Demo order placed. No payment was processed.", { type: "info" });
     } catch (err) {
-      setIsPlacingOrder(false);
       const message = err.message || "Unable to place your order. Please try again.";
       setPaymentError(message);
       showToast(message, { type: "error" });
+    } finally {
+      submissionLock.current = false;
+      setIsPlacingOrder(false);
     }
   };
 
@@ -101,7 +109,7 @@ export default function Checkout() {
           <h1 className="mt-6 font-display text-3xl text-ink-900">Order confirmed</h1>
           <p className="mt-3 text-sm text-ink-400">
             Thanks{form.fullName ? `, ${form.fullName.split(" ")[0]}` : ""} — a confirmation has
-            been sent to {form.email || "your email"}. You'll get a shipping update once it's on its way.
+            been recorded for {form.email || "your email"}. This demo did not authorize or process a payment.
           </p>
           <p className="mt-2 text-sm font-semibold text-ink-600">Order {orderId}</p>
           <div className="mt-8 flex gap-3">
@@ -141,7 +149,7 @@ export default function Checkout() {
     <div className="container-shop py-10">
       <h1 className="font-display text-3xl text-ink-900 sm:text-4xl">Checkout</h1>
 
-      <form className="mt-8 grid gap-10 lg:grid-cols-[1fr_360px]">
+      <form noValidate onSubmit={handleCheckoutSubmit} className="mt-8 grid gap-10 lg:grid-cols-[1fr_360px]">
         <div className="space-y-8">
           <section>
             <h2 className="eyebrow mb-4">Contact</h2>
@@ -200,10 +208,8 @@ export default function Checkout() {
           </section>
 
           <PaymentSection
-            form={form}
-            update={update}
+            validationRef={paymentValidationRef}
             isSubmitting={isPlacingOrder}
-            onSubmit={handlePaymentSubmit}
             disabled={isPlacingOrder}
           />
 
@@ -217,8 +223,7 @@ export default function Checkout() {
           )}
 
           <button
-            type="button"
-            onClick={handlePaymentSubmit}
+            type="submit"
             disabled={isPlacingOrder}
             className="btn-primary w-full sm:w-auto sm:px-12"
           >
