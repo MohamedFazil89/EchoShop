@@ -5,6 +5,7 @@ import { useCart } from "../../hooks/useCart";
 import { useWishlist } from "../../hooks/useWishlist";
 import { useCategories } from "../../hooks/useCategories";
 import MobileMenu from "./MobileMenu";
+import MiniCartDrawer from "./MiniCartDrawer";
 import ThemeToggle from "./ThemeToggle";
 
 export default function Navbar() {
@@ -12,7 +13,7 @@ export default function Navbar() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [scrolled, setScrolled] = useState(false);
-  const { itemCount } = useCart();
+  const { itemCount, openMiniCart, isMiniCartOpen } = useCart();
   const { count: wishlistCount } = useWishlist();
   const { categories, error: categoriesError } = useCategories();
   const navigate = useNavigate();
@@ -132,10 +133,13 @@ export default function Navbar() {
               )}
             </Link>
 
-            <Link
-              to="/cart"
+            <button
+              type="button"
+              onClick={openMiniCart}
               className="btn-icon relative h-9 w-9 text-ink-800 sm:h-10 sm:w-10"
               aria-label={`Cart, ${itemCount} items`}
+              aria-haspopup="dialog"
+              aria-expanded={isMiniCartOpen}
             >
               <ShoppingBag size={19} />
               {itemCount > 0 && (
@@ -143,7 +147,7 @@ export default function Navbar() {
                   {itemCount}
                 </span>
               )}
-            </Link>
+            </button>
           </div>
         </div>
 
@@ -167,6 +171,7 @@ export default function Navbar() {
       </header>
 
       <MobileMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
+      <MiniCartDrawer />
     </>
   );
 }

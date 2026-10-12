@@ -11,6 +11,7 @@ import { PaymentSection } from "../components/Payment/PaymentSection";
 import { Spinner } from "../components/ui/Spinner";
 import { handleProductImageError } from "../utils/productImage";
 import AvailabilityLabel from "../components/product/AvailabilityLabel";
+import { canPurchaseStock } from "../utils/stockAvailability";
 
 const initialForm = {
   email: "",
@@ -70,6 +71,10 @@ export default function Checkout() {
     event.preventDefault();
     if (submissionLock.current || isPlacingOrder) return;
 
+    if (!items.every((item) => canPurchaseStock(item.stock) && item.quantity <= item.stock)) {
+      setPaymentError("Remove unavailable items or adjust quantities before checkout.");
+      return;
+    }
     if (!paymentValidationRef.current?.()) return;
     if (!event.currentTarget.reportValidity()) return;
 

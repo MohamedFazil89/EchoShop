@@ -9,7 +9,7 @@ import { formatCurrency } from "../utils/formatCurrency";
 import { FREE_SHIPPING_THRESHOLD } from "../utils/calculateCart";
 import { useToast } from "../hooks/useToast";
 import { handleProductImageError } from "../utils/productImage";
-import { isStockKnown } from "../utils/stockAvailability";
+import { canPurchaseStock, isStockKnown } from "../utils/stockAvailability";
 
 export default function Cart() {
   const { items, totals, isLoading, loadError, updateQuantity, removeItem, clearCart } = useCart();
@@ -36,6 +36,9 @@ export default function Cart() {
   }
 
   const remainingForFreeShipping = Math.max(FREE_SHIPPING_THRESHOLD - totals.subtotal, 0);
+  const canCheckout = items.every((item) =>
+    canPurchaseStock(item.stock) && item.quantity <= item.stock
+  );
 
   const handlePromo = (e) => {
     e.preventDefault();
@@ -163,9 +166,20 @@ export default function Cart() {
             </div>
           </dl>
 
-          <Link to="/checkout" className="btn-primary mt-6 w-full">
-            Checkout
-          </Link>
+          {canCheckout ? (
+            <Link to="/checkout" className="btn-primary mt-6 w-full">
+              Checkout
+            </Link>
+          ) : (
+            <>
+              <p role="alert" className="mt-5 text-sm text-clay-600">
+                Remove unavailable items or adjust quantities before checkout.
+              </p>
+              <button type="button" disabled className="btn-primary mt-3 w-full">
+                Checkout
+              </button>
+            </>
+          )}
         </aside>
       </div>
     </div>

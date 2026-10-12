@@ -1,3 +1,4 @@
+import React from "react";
 import { getStockAvailability } from "../../utils/stockAvailability";
 
 const STATUS_STYLES = {

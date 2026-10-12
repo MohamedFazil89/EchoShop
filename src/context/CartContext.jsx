@@ -16,6 +16,7 @@ const CartContext = createContext(null);
 
 export function CartProvider({ children }) {
   const [items, setItems] = useState([]);
+  const [isMiniCartOpen, setIsMiniCartOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const itemsRef = useRef(items);
@@ -32,6 +33,9 @@ export function CartProvider({ children }) {
   const markInventoryUnknown = () => {
     setCartItems(itemsRef.current.map((item) => ({ ...item, stock: undefined })));
   };
+
+  const openMiniCart = () => setIsMiniCartOpen(true);
+  const closeMiniCart = () => setIsMiniCartOpen(false);
 
   useEffect(() => {
     if (isAuthLoading) return undefined;
@@ -120,6 +124,7 @@ export function CartProvider({ children }) {
       setCartItems(nextItems);
     }
     showToast(`${product.title} added to cart`, { type: "success" });
+    openMiniCart();
   };
 
   const removeItem = async (id, title) => {
@@ -176,11 +181,14 @@ export function CartProvider({ children }) {
   const totals = useMemo(() => calculateTotals(items), [items]);
   const value = {
     items,
+    isMiniCartOpen,
     isLoading,
     loadError,
     itemCount,
     totals,
     addItem,
+    openMiniCart,
+    closeMiniCart,
     removeItem,
     updateQuantity,
     clearCart,
